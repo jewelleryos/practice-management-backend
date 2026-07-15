@@ -15,6 +15,7 @@ import {
   createTaskCommentSchema,
   updateTaskCommentSchema,
   workStatusGridQuerySchema,
+  boardChangeWorkStatusSchema,
 } from '../config/tax-tasks.schema'
 import { successResponse } from '../../../utils/response'
 import { errorHandler } from '../../../utils/error-handler'
@@ -28,6 +29,7 @@ import type {
   TaxTaskFilterOptions,
   WorkStatusOptionsResponse,
   WorkStatusGridResponse,
+  BoardWorkStatusResult,
   TaxTaskWriteResult,
   TaskCommentView,
   TaskCommentListResponse,
@@ -93,6 +95,59 @@ taxTaskRoutes.get(
       const query = workStatusGridQuerySchema.parse(c.req.query())
       const result = await taxTaskService.workStatusGrid(c.get('user'), query)
       return successResponse<WorkStatusGridResponse>(c, taxTaskMessages.LIST_FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// GET /api/tax-tasks/work-status-board/:id — read a task for the board's modal.
+// Gated by WORK_STATUS_BOARD.VIEW (not the task-view codes) so any board member can
+// open a task read-only. Static first segment, so it wins over /:id.
+taxTaskRoutes.get(
+  '/work-status-board/:id',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.VIEW),
+  async (c) => {
+    try {
+      const result = await taxTaskService.boardGetById(c.req.param('id')!)
+      return successResponse<TaxTaskDetail>(c, taxTaskMessages.FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// GET /api/tax-tasks/work-status-board/:id/comments — the task's comment thread for
+// the board's modal. Gated by WORK_STATUS_BOARD.VIEW (read-only; posting still uses
+// the task comment routes, which enforce their own rules).
+taxTaskRoutes.get(
+  '/work-status-board/:id/comments',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.VIEW),
+  async (c) => {
+    try {
+      const result = await taxTaskCommentService.listForBoard(c.req.param('id')!)
+      return successResponse<TaskCommentListResponse>(c, taxTaskMessages.COMMENTS_FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// PATCH /api/tax-tasks/work-status-board/:id/work-status — change a task's work
+// status from the board. Board-owned: gated ONLY by WORK_STATUS_BOARD.CHANGE_WORK_STATUS
+// (no task edit/view rules). Static first segment, so it wins over /:id.
+taxTaskRoutes.patch(
+  '/work-status-board/:id/work-status',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.CHANGE_WORK_STATUS),
+  async (c) => {
+    try {
+      const { work_status_id } = boardChangeWorkStatusSchema.parse(await c.req.json())
+      const result = await taxTaskService.boardUpdateWorkStatus(
+        c.get('user'),
+        c.req.param('id')!,
+        work_status_id,
+      )
+      return successResponse<BoardWorkStatusResult>(c, taxTaskMessages.WORK_STATUS_UPDATED, result)
     } catch (error) {
       return errorHandler(error, c)
     }

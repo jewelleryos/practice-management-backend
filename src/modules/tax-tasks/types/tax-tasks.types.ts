@@ -257,6 +257,15 @@ export type TaxTaskWriteResult = TaxTaskDetail | { id: string }
 // Create returns the same shape (kept as a named alias for the create route).
 export type CreateTaxTaskResult = TaxTaskWriteResult
 
+// Board work-status change returns just the task's new work-status fields — enough
+// for the board to update the cell; the board also refetches the grid.
+export interface BoardWorkStatusResult {
+  id: string
+  work_status_id: string | null
+  work_status_name: string | null
+  work_status_color: string | null
+}
+
 export interface TaxTaskDetail extends TaskPeriod {
   id: string
   task_type: TaskType

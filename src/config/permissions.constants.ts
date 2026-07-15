@@ -140,6 +140,9 @@ export const PERMISSIONS = {
   // without task access (and vice-versa). Next 100-block after TAX_TASK.
   WORK_STATUS_BOARD: {
     VIEW: 1201,
+    // Change a task's work status directly from the board (its own capability,
+    // independent of task edit rights). Enforced by a dedicated board route.
+    CHANGE_WORK_STATUS: 1202,
   },
   // Personal tasks (tax_practice) — a member's private to-dos, visible only to
   // the creator and the followers they loop in. A SINGLE permission gates access
@@ -169,6 +172,7 @@ export type PermissionAction =
   | 'VIEW_ASSIGNED'
   | 'VIEW_ACTIVITY'
   | 'VIEW'
+  | 'CHANGE_WORK_STATUS'
   | 'ACCESS'
 
 export interface PermissionDef {
@@ -356,9 +360,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     label: 'Work Status',
     department: DEPARTMENTS.TAX_PRACTICE,
     // View-only board (service-wise task status per client). Its own permission,
-    // independent of the Tasks module's view codes.
+    // independent of the Tasks module's view codes. CHANGE_WORK_STATUS lets a
+    // member change any task's work status directly from the board.
     permissions: [
       { code: PERMISSIONS.WORK_STATUS_BOARD.VIEW, action: 'VIEW', label: 'View work status board', requires: [] },
+      {
+        code: PERMISSIONS.WORK_STATUS_BOARD.CHANGE_WORK_STATUS,
+        action: 'CHANGE_WORK_STATUS',
+        label: 'Change work status',
+        requires: [PERMISSIONS.WORK_STATUS_BOARD.VIEW],
+      },
     ],
   },
   {

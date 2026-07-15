@@ -40,6 +40,22 @@ workStatusRoutes.get(
   },
 )
 
+// GET /api/work-statuses/for-work-status-board — active work statuses for the Work
+// Status board's change-work-status modal. Gated on WORK_STATUS_BOARD.CHANGE_WORK_STATUS
+// so a board member (who may lack TAX_TASK.CREATE) can populate the picker. Before /:id.
+workStatusRoutes.get(
+  '/for-work-status-board',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.CHANGE_WORK_STATUS),
+  async (c) => {
+    try {
+      const result = await workStatusService.activeForTaxTask()
+      return successResponse(c, workStatusMessages.LIST_FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
 // GET /api/work-statuses/:id — one work status
 workStatusRoutes.get('/:id', authWithPermission(PERMISSIONS.WORK_STATUS.READ), async (c) => {
   try {
