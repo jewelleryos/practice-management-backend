@@ -93,6 +93,7 @@ export interface ListTaxClientsQuery {
   search?: string
   entity_type_id?: string
   client_group_id?: string
+  software_id?: string
   firm_id?: string
   status?: ClientStatus
   sort_by: 'name' | 'created_at'
