@@ -165,6 +165,12 @@ export const updateTaskFieldSchema = z.object({
   value: z.string().nullable(),
 })
 
+// Board-only: change just a task's work status from the Work Status board. Its own
+// route/permission (WORK_STATUS_BOARD.CHANGE_WORK_STATUS); null clears the status.
+export const boardChangeWorkStatusSchema = z.object({
+  work_status_id: z.string().trim().min(1).nullable(),
+})
+
 // Add a comment. `parent_id` present = a reply (the service checks it's a live
 // top-level comment on the same task); omitted/null = a new top-level comment.
 export const createTaskCommentSchema = z.object({

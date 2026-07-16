@@ -11,8 +11,8 @@
 --      the rows that are missing (case-insensitive name match, non-deleted).
 --      One service ("Ad-hoc / One-Time Task") is auto_added = TRUE, so it is
 --      attached to every client below (as the app does on client creation).
---   2. Ensures a few tax_practice FIRMS exist.
---   3. Grants EVERY tax-practice member access to EVERY tax_practice firm
+--   2. Ensures the FIRMS exist — TAA, TCA (tax_practice) and Core Wealth (mortgage).
+--   3. Grants each member access to every firm in the department(s) they belong to
 --      (member_firms) — without this the firm-scoped Clients list is empty.
 --   4. Inserts ~55 tax clients spread across firms / entity types / groups /
 --      software / assignees / statuses, each with 1-3 random services PLUS the
@@ -151,28 +151,27 @@ WHERE NOT EXISTS (
     WHERE LOWER(f.year) = LOWER(v.year) AND f.is_deleted = FALSE
 );
 
--- 2. FIRMS (tax_practice) -----------------------------------------------------
+-- 2. FIRMS (tax_practice + mortgage) ------------------------------------------
+--    Short name in `name`, full name in `description`. Contact fields blank.
 INSERT INTO firms (department, name, description, address, email, contact_no, is_active)
-SELECT 'tax_practice', v.name, v.description, v.address, v.email, v.contact_no, TRUE
+SELECT v.department, v.name, v.description, NULL, NULL, NULL, TRUE
 FROM (VALUES
-    ('Beact Tax & Advisory',       'Primary tax practice firm',   '12 Collins St, Melbourne VIC 3000',   'contact@beacttax.com.au',      '+61 3 9000 1000'),
-    ('Harbour City Accountants',   'Sydney-based tax firm',       '88 George St, Sydney NSW 2000',        'hello@harbourcity.com.au',     '+61 2 9000 2000'),
-    ('Southern Cross Tax Partners','Brisbane tax partnership',    '200 Queen St, Brisbane QLD 4000',      'info@southerncrosstax.com.au', '+61 7 3000 3000')
-) AS v(name, description, address, email, contact_no)
+    ('tax_practice', 'TAA',         'Tax Accounting Australia'),
+    ('tax_practice', 'TCA',         'Tax Consultant Australia'),
+    ('mortgage',     'Core Wealth', NULL)
+) AS v(department, name, description)
 WHERE NOT EXISTS (
     SELECT 1 FROM firms f
-    WHERE f.department = 'tax_practice' AND LOWER(f.name) = LOWER(v.name) AND f.is_deleted = FALSE
+    WHERE f.department = v.department AND LOWER(f.name) = LOWER(v.name) AND f.is_deleted = FALSE
 );
 
--- 3. FIRM ACCESS: grant every tax-practice member access to every tax firm ----
---    (Without this, the firm-scoped Clients list is empty for everyone.)
+-- 3. FIRM ACCESS: grant each member access to every firm in the department(s)
+--    they belong to. (Without this, the firm-scoped Clients list is empty.)
 INSERT INTO member_firms (member_id, firm_id)
 SELECT m.id, f.id
 FROM members m
-CROSS JOIN firms f
+JOIN firms f ON f.department = ANY(m.departments)
 WHERE m.is_deleted = FALSE
-  AND 'tax_practice' = ANY(m.departments)
-  AND f.department = 'tax_practice'
   AND f.is_deleted = FALSE
   AND f.is_active = TRUE
   AND NOT EXISTS (

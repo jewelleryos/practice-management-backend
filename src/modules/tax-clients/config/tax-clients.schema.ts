@@ -114,6 +114,7 @@ export const listTaxClientsQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   entity_type_id: z.string().trim().min(1).optional(),
   client_group_id: z.string().trim().min(1).optional(),
+  software_id: z.string().trim().min(1).optional(),
   firm_id: z.string().trim().min(1).optional(),
   status: statusEnum.optional(),
   sort_by: z.enum(['name', 'created_at']).default('name'),

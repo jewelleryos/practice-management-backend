@@ -105,6 +105,14 @@ export const PERMISSIONS = {
     READ: 10202,
     UPDATE: 10203,
   },
+  // Block 13 — Type of Loan (master data). Name + description lookup the mortgage
+  // task picks its loan type from. Cross-department master; next 100-block in the
+  // 10000+ overflow range. DELETE omitted for now — deferred (see root CLAUDE.md).
+  LOAN_TYPE: {
+    CREATE: 10301,
+    READ: 10302,
+    UPDATE: 10303,
+  },
 
   // ── Department-scoped modules ──
   // "Clients" exists once per department as two separate permission sets. The
@@ -140,6 +148,9 @@ export const PERMISSIONS = {
   // without task access (and vice-versa). Next 100-block after TAX_TASK.
   WORK_STATUS_BOARD: {
     VIEW: 1201,
+    // Change a task's work status directly from the board (its own capability,
+    // independent of task edit rights). Enforced by a dedicated board route.
+    CHANGE_WORK_STATUS: 1202,
   },
   // Personal tasks (tax_practice) — a member's private to-dos, visible only to
   // the creator and the followers they loop in. A SINGLE permission gates access
@@ -155,6 +166,25 @@ export const PERMISSIONS = {
     UPDATE: 2003,
     DELETE: 2004,
   },
+  // Mortgage service tasks — department-scoped (like MORTGAGE_CLIENT). Next 100-block
+  // after MORTGAGE_CLIENT (2001-2004). Mirrors the tax-task shape: no dedicated edit
+  // code — write rights come from the creator/follower business rule (visibility =
+  // writability). Firm access (member_firms) is the outer boundary on every read/write.
+  //   VIEW          — see tasks the caller created or follows (within their firms)
+  //   VIEW_ALL      — see every task in the firms the caller can access
+  //   VIEW_ACTIVITY — read a task's activity log
+  MORTGAGE_TASK: {
+    CREATE: 2101,
+    VIEW: 2102,
+    VIEW_ALL: 2103,
+    VIEW_ACTIVITY: 2104,
+  },
+  // Personal tasks (mortgage) — a member's private to-dos, visible only to the
+  // creator and their followers. A SINGLE permission gates the whole module (same
+  // shape as TAX_PERSONAL_TASK). Next 100-block after MORTGAGE_TASK.
+  MORTGAGE_PERSONAL_TASK: {
+    ACCESS: 2201,
+  },
 } as const
 
 export type PermissionAction =
@@ -169,6 +199,7 @@ export type PermissionAction =
   | 'VIEW_ASSIGNED'
   | 'VIEW_ACTIVITY'
   | 'VIEW'
+  | 'CHANGE_WORK_STATUS'
   | 'ACCESS'
 
 export interface PermissionDef {
@@ -321,6 +352,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     ],
   },
   {
+    key: 'loan_types',
+    label: 'Type of Loan',
+    department: null,
+    permissions: [
+      { code: PERMISSIONS.LOAN_TYPE.CREATE, action: 'CREATE', label: 'Create loan types', requires: [PERMISSIONS.LOAN_TYPE.READ] },
+      { code: PERMISSIONS.LOAN_TYPE.READ, action: 'READ', label: 'View loan types', requires: [] },
+      { code: PERMISSIONS.LOAN_TYPE.UPDATE, action: 'UPDATE', label: 'Edit loan types', requires: [PERMISSIONS.LOAN_TYPE.READ] },
+    ],
+  },
+  {
     key: 'clients',
     label: 'Clients',
     department: DEPARTMENTS.TAX_PRACTICE,
@@ -356,9 +397,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     label: 'Work Status',
     department: DEPARTMENTS.TAX_PRACTICE,
     // View-only board (service-wise task status per client). Its own permission,
-    // independent of the Tasks module's view codes.
+    // independent of the Tasks module's view codes. CHANGE_WORK_STATUS lets a
+    // member change any task's work status directly from the board.
     permissions: [
       { code: PERMISSIONS.WORK_STATUS_BOARD.VIEW, action: 'VIEW', label: 'View work status board', requires: [] },
+      {
+        code: PERMISSIONS.WORK_STATUS_BOARD.CHANGE_WORK_STATUS,
+        action: 'CHANGE_WORK_STATUS',
+        label: 'Change work status',
+        requires: [PERMISSIONS.WORK_STATUS_BOARD.VIEW],
+      },
     ],
   },
   {
@@ -380,6 +428,30 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.MORTGAGE_CLIENT.READ, action: 'READ', label: 'View clients', requires: [] },
       { code: PERMISSIONS.MORTGAGE_CLIENT.UPDATE, action: 'UPDATE', label: 'Edit clients', requires: [PERMISSIONS.MORTGAGE_CLIENT.READ] },
       { code: PERMISSIONS.MORTGAGE_CLIENT.DELETE, action: 'DELETE', label: 'Delete clients', requires: [PERMISSIONS.MORTGAGE_CLIENT.READ] },
+    ],
+  },
+  {
+    key: 'tasks',
+    label: 'Tasks',
+    department: DEPARTMENTS.MORTGAGE,
+    // Firm access (member_firms) bounds every read/write. VIEW vs VIEW_ALL is the
+    // breadth (own/followed vs all in the firm); writes follow visibility (no edit
+    // code). VIEW_ACTIVITY gates the activity log and needs VIEW.
+    permissions: [
+      { code: PERMISSIONS.MORTGAGE_TASK.CREATE, action: 'CREATE', label: 'Create tasks', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
+      { code: PERMISSIONS.MORTGAGE_TASK.VIEW, action: 'VIEW', label: 'View own/followed tasks', requires: [] },
+      { code: PERMISSIONS.MORTGAGE_TASK.VIEW_ALL, action: 'VIEW_ALL', label: 'View all firm tasks', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
+      { code: PERMISSIONS.MORTGAGE_TASK.VIEW_ACTIVITY, action: 'VIEW_ACTIVITY', label: 'View task activity log', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
+    ],
+  },
+  {
+    key: 'personal-tasks',
+    label: 'Personal Tasks',
+    department: DEPARTMENTS.MORTGAGE,
+    // One permission: access to the personal-task module (create + see/edit own as
+    // creator or follower). No CREATE/VIEW split.
+    permissions: [
+      { code: PERMISSIONS.MORTGAGE_PERSONAL_TASK.ACCESS, action: 'ACCESS', label: 'Access personal tasks', requires: [] },
     ],
   },
 ]

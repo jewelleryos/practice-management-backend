@@ -41,6 +41,18 @@ firmRoutes.get('/for-tax-client', authWithPermission(PERMISSIONS.TAX_CLIENT.CREA
 firmRoutes.get('/for-tax-client-edit', authWithPermission(PERMISSIONS.TAX_CLIENT.UPDATE), firmsForTaxClient)
 firmRoutes.get('/for-tax-client-list', authWithPermission(PERMISSIONS.TAX_CLIENT.READ), firmsForTaxClient)
 
+// ── Mortgage-task "for" route ──
+// Firm dropdown options for the mortgage-task create form — the member's accessible
+// mortgage firms. Gated on MORTGAGE_TASK.CREATE, not FIRM.READ.
+firmRoutes.get('/for-mortgage-task', authWithPermission(PERMISSIONS.MORTGAGE_TASK.CREATE), async (c) => {
+  try {
+    const result = await firmService.forMortgageTask(c.get('user').id)
+    return successResponse(c, firmMessages.LIST_FETCHED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
 // GET /api/firms/:id — one firm
 firmRoutes.get('/:id', authWithPermission(PERMISSIONS.FIRM.READ), async (c) => {
   try {
