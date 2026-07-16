@@ -46,6 +46,22 @@ export const firmService = {
     return { items: result.rows }
   },
 
+  // Trimmed firm options for the mortgage-task create form. Scoped to the member's OWN
+  // accessible Mortgage firms (active only) — a member must never create a task for a
+  // firm they can't access. Gated on the mortgage-task permission (Luminique "for").
+  async forMortgageTask(memberId: string): Promise<{ items: { id: string; name: string }[] }> {
+    const result = await db.query(
+      `SELECT f.id, f.name
+       FROM member_firms mf
+       JOIN firms f ON f.id = mf.firm_id
+        AND f.is_deleted = FALSE AND f.department = 'mortgage' AND f.is_active = TRUE
+       WHERE mf.member_id = $1
+       ORDER BY f.name ASC`,
+      [memberId],
+    )
+    return { items: result.rows }
+  },
+
   // List non-deleted firms with member-access counts. Optionally filter by department.
   async list(department?: DepartmentCode): Promise<FirmListResponse> {
     const params: any[] = []

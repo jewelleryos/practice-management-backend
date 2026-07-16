@@ -62,6 +62,20 @@ export const taxTaskCommentService = {
   // Anyone who can SEE the task can read its comments (loadVisibleRow gates it).
   async list(actingUser: AuthUser, taskId: string): Promise<TaskCommentListResponse> {
     await taxTaskService.loadVisibleRow(actingUser, taskId)
+    return this.fetchThread(taskId)
+  },
+
+  // Board read: the same thread, but visibility is the board VIEW permission (route-
+  // gated), not the task-view scope — so an existence check is enough.
+  async listForBoard(taskId: string): Promise<TaskCommentListResponse> {
+    const row = await taxTaskService.fetchRow(taskId)
+    if (!row) {
+      throw new AppError(taxTaskMessages.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
+    return this.fetchThread(taskId)
+  },
+
+  async fetchThread(taskId: string): Promise<TaskCommentListResponse> {
     const result = await db.query(
       `SELECT ${COMMENT_SELECT}
        FROM tax_task_comments c
