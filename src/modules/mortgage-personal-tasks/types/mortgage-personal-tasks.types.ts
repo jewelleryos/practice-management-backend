@@ -1,0 +1,88 @@
+import type { TaskStatus } from '../../../config/task-statuses.constants'
+
+// ── Requests ──
+
+export interface CreatePersonalTaskRequest {
+  title: string
+  description?: string | null
+  status: TaskStatus
+  due_date?: string | null
+  follower_ids: string[]
+}
+
+export interface UpdatePersonalTaskRequest {
+  title?: string
+  description?: string | null
+  status?: TaskStatus
+  due_date?: string | null
+}
+
+export interface SetFollowersRequest {
+  follower_ids: string[]
+}
+
+export interface CreateNoteRequest {
+  body: string
+}
+
+export interface UpdateNoteRequest {
+  body: string
+}
+
+export interface ListPersonalTasksQuery {
+  page: number
+  pageSize: number
+  status?: TaskStatus
+  follower_id?: string
+  search?: string
+  sort_by: 'created_at' | 'due_date'
+  sort_dir: 'asc' | 'desc'
+}
+
+// ── Responses ──
+
+export interface PersonalTaskFollower {
+  member_id: string
+  name: string | null
+}
+
+export interface PersonalTaskMemberOption {
+  id: string
+  name: string
+}
+
+export interface PersonalTaskNote {
+  id: string
+  body: string
+  created_by: string | null
+  created_by_name: string | null
+  edited: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PersonalTaskListItem {
+  id: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  due_date: string | null
+  created_by: string
+  creator_name: string | null
+  followers: PersonalTaskFollower[]
+  note_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PersonalTaskListResponse {
+  items: PersonalTaskListItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export interface PersonalTaskDetail extends PersonalTaskListItem {
+  notes: PersonalTaskNote[]
+}

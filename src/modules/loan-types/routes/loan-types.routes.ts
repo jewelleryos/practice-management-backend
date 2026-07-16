@@ -24,6 +24,22 @@ loanTypeRoutes.get('/', authWithPermission(PERMISSIONS.LOAN_TYPE.READ), async (c
   }
 })
 
+// GET /api/loan-types/for-mortgage-task — options for the mortgage-task create form.
+// Permission detached from LOAN_TYPE.READ; gated on MORTGAGE_TASK.CREATE. Declared
+// before /:id so it isn't swallowed by the param route.
+loanTypeRoutes.get(
+  '/for-mortgage-task',
+  authWithPermission(PERMISSIONS.MORTGAGE_TASK.CREATE),
+  async (c) => {
+    try {
+      const result = await loanTypeService.forMortgageTask()
+      return successResponse(c, loanTypeMessages.LIST_FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
 // GET /api/loan-types/:id — one loan type
 loanTypeRoutes.get('/:id', authWithPermission(PERMISSIONS.LOAN_TYPE.READ), async (c) => {
   try {

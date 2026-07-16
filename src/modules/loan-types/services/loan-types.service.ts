@@ -20,6 +20,16 @@ export const loanTypeService = {
     return { items: result.rows }
   },
 
+  // Trimmed options for the mortgage-task create form. Access is detached from
+  // LOAN_TYPE.READ — the route gates it on the mortgage-task action instead
+  // (Luminique "for" pattern).
+  async forMortgageTask(): Promise<{ items: { id: string; name: string }[] }> {
+    const result = await db.query(
+      `SELECT id, name FROM loan_types WHERE is_deleted = FALSE ORDER BY name ASC`,
+    )
+    return { items: result.rows }
+  },
+
   async getById(id: string): Promise<LoanType> {
     const result = await db.query(
       `SELECT ${COLUMNS} FROM loan_types WHERE id = $1 AND is_deleted = FALSE`,
