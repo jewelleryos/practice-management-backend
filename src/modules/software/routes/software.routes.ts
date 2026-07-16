@@ -36,6 +36,7 @@ const softwareForTaxClient = async (c: any) => {
 }
 softwareRoutes.get('/for-tax-client', authWithPermission(PERMISSIONS.TAX_CLIENT.CREATE), softwareForTaxClient)
 softwareRoutes.get('/for-tax-client-edit', authWithPermission(PERMISSIONS.TAX_CLIENT.UPDATE), softwareForTaxClient)
+softwareRoutes.get('/for-tax-client-list', authWithPermission(PERMISSIONS.TAX_CLIENT.READ), softwareForTaxClient)
 
 // GET /api/software/:id — one software
 softwareRoutes.get('/:id', authWithPermission(PERMISSIONS.SOFTWARE.READ), async (c) => {

@@ -53,6 +53,10 @@ export const taxClientService = {
       params.push(q.client_group_id)
       where.push(`c.client_group_id = $${params.length}`)
     }
+    if (q.software_id) {
+      params.push(q.software_id)
+      where.push(`c.software_id = $${params.length}`)
+    }
     if (q.status) {
       params.push(q.status)
       where.push(`c.status = $${params.length}`)

@@ -23,6 +23,7 @@ import type {
   TaxTaskDetail,
   TaxTaskListResponse,
   TaxTaskWriteResult,
+  BoardWorkStatusResult,
   TaxTaskFilterOptions,
   WorkStatusOptionsResponse,
   WorkStatusGridQuery,
@@ -392,6 +393,19 @@ export const taxTaskService = {
     // Outside the member's firms, or (assigned-only) not their task → not found
     // (don't leak existence of tasks the caller isn't allowed to see).
     const row = await this.loadVisibleRow(actingUser, id)
+    delete row._firm_id
+    return row as TaxTaskDetail
+  },
+
+  // ── DETAIL (board) ──
+  // Read a task for the Work Status board's modal. Gated at the route by
+  // WORK_STATUS_BOARD.VIEW — so the caller need not hold the TAX_TASK view codes.
+  // Existence-only (no task-view scope); write actions still enforce their own rules.
+  async boardGetById(id: string): Promise<TaxTaskDetail> {
+    const row = await this.fetchRow(id)
+    if (!row) {
+      throw new AppError(taxTaskMessages.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
     delete row._firm_id
     return row as TaxTaskDetail
   },
@@ -974,14 +988,74 @@ export const taxTaskService = {
   },
 
   // Who may edit a task's plain fields (priority / work status / description / due
-  // date / period dates): a VIEW_ALL member, or the task's assigned preparer —
-  // same rule as reassignment. (The reviewer, and a plain viewer, may not.)
+  // date / period dates): a VIEW_ALL member, or the task's assigned preparer OR
+  // reviewer. (A plain viewer may not.)
   assertCanEdit(actingUser: AuthUser, row: any): void {
     const canViewAll = actingUser.permissions.includes(PERMISSIONS.TAX_TASK.VIEW_ALL)
     const isAssignedPreparer = row.preparer_id === actingUser.id
-    if (!canViewAll && !isAssignedPreparer) {
+    const isAssignedReviewer = row.reviewer_id === actingUser.id
+    if (!canViewAll && !isAssignedPreparer && !isAssignedReviewer) {
       throw new AppError(taxTaskMessages.EDIT_FORBIDDEN, HTTP_STATUS.FORBIDDEN)
     }
+  },
+
+  // ── BOARD: change a task's work status (PATCH /work-status-board/:id/work-status) ──
+  // Owned by the Work Status board and gated at the route by
+  // WORK_STATUS_BOARD.CHANGE_WORK_STATUS — so authorization is that permission
+  // alone, NOT the task edit/view rules (a board member need not be preparer/
+  // reviewer, nor hold the TAX_TASK view codes). Validates + logs like updateField,
+  // then returns just the new work-status fields (the board refetches the grid).
+  async boardUpdateWorkStatus(
+    actingUser: AuthUser,
+    id: string,
+    value: string | null,
+  ): Promise<BoardWorkStatusResult> {
+    const row = await this.fetchRow(id)
+    if (!row) {
+      throw new AppError(taxTaskMessages.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
+
+    const wsId = value && value.trim() ? value.trim() : null
+    let toName: string | null = null
+    let toColor: string | null = null
+    if (wsId) {
+      const ws = await db.query(
+        `SELECT name, color, is_active FROM work_statuses WHERE id = $1 AND is_deleted = FALSE`,
+        [wsId],
+      )
+      if (ws.rows.length === 0) {
+        throw new AppError(taxTaskMessages.WORK_STATUS_NOT_FOUND, HTTP_STATUS.BAD_REQUEST)
+      }
+      if (!ws.rows[0].is_active) {
+        throw new AppError(taxTaskMessages.WORK_STATUS_INACTIVE, HTTP_STATUS.BAD_REQUEST)
+      }
+      toName = ws.rows[0].name
+      toColor = ws.rows[0].color
+    }
+
+    // No-op when unchanged — nothing written or logged.
+    if (wsId === (row.work_status_id ?? null)) {
+      return { id, work_status_id: wsId, work_status_name: toName, work_status_color: toColor }
+    }
+
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`UPDATE tax_tasks SET work_status_id = $1 WHERE id = $2`, [wsId, id])
+      await this.logActivity(client, id, actingUser.id, TASK_ACTIVITY_ACTIONS.WORK_STATUS_CHANGED, {
+        from: row.work_status_id ?? null,
+        to: wsId,
+        from_name: row.work_status_name ?? null,
+        to_name: toName,
+      })
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+    return { id, work_status_id: wsId, work_status_name: toName, work_status_color: toColor }
   },
 
   // ── EDIT ONE PLAIN FIELD (PATCH /:id/:field) ──
