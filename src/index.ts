@@ -15,6 +15,7 @@ import { softwareRoutes } from './modules/software/routes/software.routes'
 import { relationTypeRoutes } from './modules/relation-types/routes/relation-types.routes'
 import { noteTypeRoutes } from './modules/note-types/routes/note-types.routes'
 import { workStatusRoutes } from './modules/work-statuses/routes/work-statuses.routes'
+import { loanTypeRoutes } from './modules/loan-types/routes/loan-types.routes'
 import { taxClientRoutes } from './modules/tax-clients/routes/tax-clients.routes'
 import { taxTaskRoutes } from './modules/tax-tasks/routes/tax-tasks.routes'
 import { taxPersonalTaskRoutes } from './modules/tax-personal-tasks/routes/tax-personal-tasks.routes'
@@ -69,6 +70,7 @@ app.route('/api/software', softwareRoutes)
 app.route('/api/relation-types', relationTypeRoutes)
 app.route('/api/note-types', noteTypeRoutes)
 app.route('/api/work-statuses', workStatusRoutes)
+app.route('/api/loan-types', loanTypeRoutes)
 
 // Server configuration
 const port = Number(process.env.PORT) || 8787

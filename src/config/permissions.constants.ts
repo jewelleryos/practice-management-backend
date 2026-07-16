@@ -105,6 +105,14 @@ export const PERMISSIONS = {
     READ: 10202,
     UPDATE: 10203,
   },
+  // Block 13 — Type of Loan (master data). Name + description lookup the mortgage
+  // task picks its loan type from. Cross-department master; next 100-block in the
+  // 10000+ overflow range. DELETE omitted for now — deferred (see root CLAUDE.md).
+  LOAN_TYPE: {
+    CREATE: 10301,
+    READ: 10302,
+    UPDATE: 10303,
+  },
 
   // ── Department-scoped modules ──
   // "Clients" exists once per department as two separate permission sets. The
@@ -322,6 +330,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.WORK_STATUS.CREATE, action: 'CREATE', label: 'Create work statuses', requires: [PERMISSIONS.WORK_STATUS.READ] },
       { code: PERMISSIONS.WORK_STATUS.READ, action: 'READ', label: 'View work statuses', requires: [] },
       { code: PERMISSIONS.WORK_STATUS.UPDATE, action: 'UPDATE', label: 'Edit work statuses', requires: [PERMISSIONS.WORK_STATUS.READ] },
+    ],
+  },
+  {
+    key: 'loan_types',
+    label: 'Type of Loan',
+    department: null,
+    permissions: [
+      { code: PERMISSIONS.LOAN_TYPE.CREATE, action: 'CREATE', label: 'Create loan types', requires: [PERMISSIONS.LOAN_TYPE.READ] },
+      { code: PERMISSIONS.LOAN_TYPE.READ, action: 'READ', label: 'View loan types', requires: [] },
+      { code: PERMISSIONS.LOAN_TYPE.UPDATE, action: 'UPDATE', label: 'Edit loan types', requires: [PERMISSIONS.LOAN_TYPE.READ] },
     ],
   },
   {
