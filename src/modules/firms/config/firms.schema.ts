@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { firmMessages } from './firms.messages'
 import { ALL_DEPARTMENT_CODES, type DepartmentCode } from '../../../config/departments.constants'
+import { isFooterImageKey } from '../../../config/letterhead-footer-images.constants'
 
 const departmentEnum = z.enum(ALL_DEPARTMENT_CODES as [DepartmentCode, ...DepartmentCode[]], {
   errorMap: () => ({ message: firmMessages.INVALID_DEPARTMENT }),
@@ -48,4 +49,49 @@ export const updateFirmSchema = z.object({
   contact_no: optionalText(25),
   concern_persons: z.array(concernPersonSchema).optional(),
   is_active: z.boolean().optional(),
+})
+
+// ── Letter head ──
+// A top-row segment: empty string → null, so the stored snapshot is clean.
+const topRowSegment = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((v) => (v === '' ? null : v))
+  .nullish()
+  .transform((v) => v ?? null)
+
+const letterheadHeaderSchema = z.object({
+  top_row: z
+    .object({
+      left: topRowSegment,
+      middle: topRowSegment,
+      right: topRowSegment,
+    })
+    .default({ left: null, middle: null, right: null }),
+  company_name: z.string().trim().min(1, 'Company name is required').max(200),
+  // Blank lines are dropped so the stored snapshot has no empty rows.
+  lines: z
+    .array(z.string().trim().max(300))
+    .max(50)
+    .default([])
+    .transform((arr) => arr.filter((l) => l !== '')),
+})
+
+// Footer = a single image. image_key is required (there is always one footer) and
+// must be a known key from the footer-images config.
+const letterheadFooterSchema = z.object({
+  image_key: z
+    .string()
+    .trim()
+    .min(1, 'A footer image is required')
+    .max(100)
+    .refine(isFooterImageKey, 'Unknown footer image'),
+})
+
+export const saveLetterheadSchema = z.object({
+  content: z.object({
+    header: letterheadHeaderSchema,
+    footer: letterheadFooterSchema,
+  }),
 })
