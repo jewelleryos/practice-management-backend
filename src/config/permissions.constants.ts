@@ -42,6 +42,10 @@ export const PERMISSIONS = {
     READ: 302,
     UPDATE: 303,
     DELETE: 304,
+    // Create/save a firm's letter-head (and later footer) versions. One toggle for
+    // both header and footer editing; viewing needs only FIRM.READ. Lives in the
+    // firms master block (not a separate module).
+    MANAGE_LETTERHEAD: 305,
   },
   // Block 4 — Financial Years (master data)
   // DELETE (404) is intentionally omitted for now — financial years cannot be
@@ -201,6 +205,7 @@ export type PermissionAction =
   | 'VIEW'
   | 'CHANGE_WORK_STATUS'
   | 'ACCESS'
+  | 'MANAGE_LETTERHEAD'
 
 export interface PermissionDef {
   code: number
@@ -259,6 +264,12 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.FIRM.READ, action: 'READ', label: 'View firms', requires: [] },
       { code: PERMISSIONS.FIRM.UPDATE, action: 'UPDATE', label: 'Edit firms', requires: [PERMISSIONS.FIRM.READ] },
       { code: PERMISSIONS.FIRM.DELETE, action: 'DELETE', label: 'Delete firms', requires: [PERMISSIONS.FIRM.READ] },
+      {
+        code: PERMISSIONS.FIRM.MANAGE_LETTERHEAD,
+        action: 'MANAGE_LETTERHEAD',
+        label: 'Manage letter heads and footer',
+        requires: [PERMISSIONS.FIRM.READ],
+      },
     ],
   },
   {

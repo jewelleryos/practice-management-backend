@@ -1,14 +1,21 @@
 import { Hono } from 'hono'
 import { firmService } from '../services/firms.service'
 import { firmMessages } from '../config/firms.messages'
-import { createFirmSchema, updateFirmSchema } from '../config/firms.schema'
+import { createFirmSchema, updateFirmSchema, saveLetterheadSchema } from '../config/firms.schema'
 import { successResponse } from '../../../utils/response'
 import { errorHandler } from '../../../utils/error-handler'
 import { authWithPermission } from '../../../middleware/auth.middleware'
 import { PERMISSIONS } from '../../../config/permissions.constants'
 import { isDepartmentCode } from '../../../config/departments.constants'
+import { LETTERHEAD_FOOTER_IMAGES } from '../../../config/letterhead-footer-images.constants'
 import type { AppEnv } from '../../../types/hono.types'
-import type { Firm, FirmListResponse } from '../types/firms.types'
+import type {
+  Firm,
+  FirmListResponse,
+  FirmLetterheadVersion,
+  FirmLetterheadVersionsResponse,
+  LetterheadFooterImagesResponse,
+} from '../types/firms.types'
 
 export const firmRoutes = new Hono<AppEnv>()
 
@@ -48,6 +55,46 @@ firmRoutes.get('/for-mortgage-task', authWithPermission(PERMISSIONS.MORTGAGE_TAS
   try {
     const result = await firmService.forMortgageTask(c.get('user').id)
     return successResponse(c, firmMessages.LIST_FETCHED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// GET /api/firms/letterhead-footer-images — the footer-image catalog for the editor's
+// picker. Manage-gated (it's letter-head config). Viewers don't need it — versions come
+// back with the footer image_path already resolved. Declared before /:id.
+firmRoutes.get('/letterhead-footer-images', authWithPermission(PERMISSIONS.FIRM.MANAGE_LETTERHEAD), async (c) => {
+  try {
+    return successResponse<LetterheadFooterImagesResponse>(c, firmMessages.LETTERHEAD_IMAGES_FETCHED, {
+      items: LETTERHEAD_FOOTER_IMAGES,
+    })
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// ── Letter head (versioned) — sub-resource of a firm ──
+// Declared before /:id so the /:firmId/letterhead/* paths aren't shadowed. Viewing
+// is gated on FIRM.READ (you already need it to see the firms master); saving needs
+// the single FIRM.MANAGE_LETTERHEAD permission. Tax-practice firms only (service guard).
+
+// GET /api/firms/:firmId/letterhead/versions — all versions, newest first
+firmRoutes.get('/:firmId/letterhead/versions', authWithPermission(PERMISSIONS.FIRM.READ), async (c) => {
+  try {
+    const result = await firmService.listLetterheadVersions(c.req.param('firmId')!)
+    return successResponse<FirmLetterheadVersionsResponse>(c, firmMessages.LETTERHEAD_VERSIONS_FETCHED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// POST /api/firms/:firmId/letterhead — save a new version
+firmRoutes.post('/:firmId/letterhead', authWithPermission(PERMISSIONS.FIRM.MANAGE_LETTERHEAD), async (c) => {
+  try {
+    const body = await c.req.json()
+    const data = saveLetterheadSchema.parse(body)
+    const result = await firmService.saveLetterhead(c.req.param('firmId')!, data.content, c.get('user').id)
+    return successResponse<FirmLetterheadVersion>(c, firmMessages.LETTERHEAD_SAVED, result, 201)
   } catch (error) {
     return errorHandler(error, c)
   }

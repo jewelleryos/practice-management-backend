@@ -64,3 +64,49 @@ export interface UpdateFirmRequest {
 export interface FirmListResponse {
   items: FirmListItem[]
 }
+
+// ── Letter head (versioned) ──
+// A letter-head version is a complete snapshot of BOTH the header and the footer.
+export interface LetterheadHeader {
+  top_row: { left: string | null; middle: string | null; right: string | null }
+  company_name: string
+  lines: string[]
+}
+
+// Footer = a single image. `image_key` (required) is what's stored; `image_path`
+// is added on read (resolved from the backend footer-images config) so viewers can
+// render the image without calling the manage-gated catalog endpoint.
+export interface LetterheadFooter {
+  image_key: string
+  image_path?: string | null
+}
+
+export interface LetterheadContent {
+  header: LetterheadHeader
+  footer: LetterheadFooter
+}
+
+// One immutable version of a firm's letter head.
+export interface FirmLetterheadVersion {
+  id: string
+  firm_id: string
+  version_no: number
+  is_latest: boolean
+  content: LetterheadContent
+  created_by: string
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface FirmLetterheadVersionsResponse {
+  items: FirmLetterheadVersion[]
+}
+
+export interface SaveLetterheadRequest {
+  content: LetterheadContent
+}
+
+// The footer-image catalog (for the editor's picker).
+export interface LetterheadFooterImagesResponse {
+  items: { key: string; label: string; path: string }[]
+}

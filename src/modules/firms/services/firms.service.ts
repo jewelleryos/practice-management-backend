@@ -2,6 +2,7 @@ import { db } from '../../../lib/db'
 import { firmMessages } from '../config/firms.messages'
 import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
+import { footerImagePath } from '../../../config/letterhead-footer-images.constants'
 import type {
   Firm,
   FirmListResponse,
@@ -9,6 +10,9 @@ import type {
   UpdateFirmRequest,
   ConcernPersonInput,
   ConcernPerson,
+  LetterheadContent,
+  FirmLetterheadVersion,
+  FirmLetterheadVersionsResponse,
 } from '../types/firms.types'
 import type { DepartmentCode } from '../../../config/departments.constants'
 
@@ -204,5 +208,109 @@ export const firmService = {
        WHERE id = $1`,
       [id, deletedBy],
     )
+  },
+
+  // ── Letter head (versioned) ──
+  // Letter heads exist for tax-practice firms only. Guards that the firm exists,
+  // is non-deleted, and is a tax firm — 404/400 otherwise. (Master-data editing is
+  // gated by the FIRM.MANAGE_LETTERHEAD permission on the route, not by member_firms
+  // access — same as editing the firm master itself.)
+  async assertTaxFirm(firmId: string): Promise<void> {
+    const result = await db.query(
+      `SELECT id, department FROM firms WHERE id = $1 AND is_deleted = FALSE`,
+      [firmId],
+    )
+    if (result.rows.length === 0) {
+      throw new AppError(firmMessages.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
+    if (result.rows[0].department !== 'tax_practice') {
+      throw new AppError(firmMessages.LETTERHEAD_ONLY_TAX, HTTP_STATUS.BAD_REQUEST)
+    }
+  },
+
+  // Add the resolved footer image path (from config) to a version's content, so
+  // viewers can render the footer without the manage-gated catalog endpoint.
+  enrichLetterheadVersion(row: FirmLetterheadVersion): FirmLetterheadVersion {
+    if (row?.content?.footer) {
+      row.content.footer.image_path = footerImagePath(row.content.footer.image_key)
+    }
+    return row
+  },
+
+  async getLetterheadVersionById(id: string): Promise<FirmLetterheadVersion> {
+    const result = await db.query(
+      `SELECT lh.id, lh.firm_id, lh.version_no, lh.is_latest, lh.content,
+              lh.created_by,
+              CASE WHEN m.id IS NULL THEN NULL
+                   ELSE m.first_name || ' ' || m.last_name END AS created_by_name,
+              lh.created_at
+       FROM firm_letterheads lh
+       LEFT JOIN members m ON m.id = lh.created_by
+       WHERE lh.id = $1`,
+      [id],
+    )
+    return this.enrichLetterheadVersion(result.rows[0])
+  },
+
+  // Every version for a firm, newest first (each with its full content snapshot, so
+  // the modal can render/switch previews without extra round-trips).
+  async listLetterheadVersions(firmId: string): Promise<FirmLetterheadVersionsResponse> {
+    await this.assertTaxFirm(firmId)
+    const result = await db.query(
+      `SELECT lh.id, lh.firm_id, lh.version_no, lh.is_latest, lh.content,
+              lh.created_by,
+              CASE WHEN m.id IS NULL THEN NULL
+                   ELSE m.first_name || ' ' || m.last_name END AS created_by_name,
+              lh.created_at
+       FROM firm_letterheads lh
+       LEFT JOIN members m ON m.id = lh.created_by
+       WHERE lh.firm_id = $1
+       ORDER BY lh.version_no DESC`,
+      [firmId],
+    )
+    return { items: result.rows.map((r) => this.enrichLetterheadVersion(r)) }
+  },
+
+  // Save a new version: insert version_no+1 as the latest, demoting the prior latest.
+  // Content is immutable per version — we never UPDATE an existing row's content.
+  async saveLetterhead(
+    firmId: string,
+    content: LetterheadContent,
+    createdBy: string,
+  ): Promise<FirmLetterheadVersion> {
+    await this.assertTaxFirm(firmId)
+
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+
+      const maxRes = await client.query(
+        `SELECT COALESCE(MAX(version_no), 0)::int AS max
+         FROM firm_letterheads WHERE firm_id = $1`,
+        [firmId],
+      )
+      const nextVersion = maxRes.rows[0].max + 1
+
+      await client.query(
+        `UPDATE firm_letterheads SET is_latest = FALSE
+         WHERE firm_id = $1 AND is_latest = TRUE`,
+        [firmId],
+      )
+
+      const inserted = await client.query(
+        `INSERT INTO firm_letterheads (firm_id, version_no, is_latest, content, created_by)
+         VALUES ($1, $2, TRUE, $3::jsonb, $4)
+         RETURNING id`,
+        [firmId, nextVersion, JSON.stringify(content), createdBy],
+      )
+
+      await client.query('COMMIT')
+      return this.getLetterheadVersionById(inserted.rows[0].id)
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   },
 }
