@@ -88,6 +88,44 @@ firmRoutes.get('/:firmId/letterhead/versions', authWithPermission(PERMISSIONS.FI
   }
 })
 
+// Stream the generated PDF bytes back as a file download.
+function pdfResponse(pdf: Uint8Array, filename: string): Response {
+  return new Response(pdf, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
+  })
+}
+
+// GET /api/firms/:firmId/letterhead/versions/:versionId/pdf — blank-letterhead PDF for a
+// specific version. Manage-gated (same permission as editing; no separate download perm).
+firmRoutes.get(
+  '/:firmId/letterhead/versions/:versionId/pdf',
+  authWithPermission(PERMISSIONS.FIRM.MANAGE_LETTERHEAD),
+  async (c) => {
+    try {
+      const { pdf, filename } = await firmService.getLetterheadPdf(
+        c.req.param('firmId')!,
+        c.req.param('versionId')!,
+      )
+      return pdfResponse(pdf, filename)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// GET /api/firms/:firmId/letterhead/pdf — blank-letterhead PDF for the CURRENT version.
+firmRoutes.get('/:firmId/letterhead/pdf', authWithPermission(PERMISSIONS.FIRM.MANAGE_LETTERHEAD), async (c) => {
+  try {
+    const { pdf, filename } = await firmService.getLetterheadPdf(c.req.param('firmId')!)
+    return pdfResponse(pdf, filename)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
 // POST /api/firms/:firmId/letterhead — save a new version
 firmRoutes.post('/:firmId/letterhead', authWithPermission(PERMISSIONS.FIRM.MANAGE_LETTERHEAD), async (c) => {
   try {

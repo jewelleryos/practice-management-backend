@@ -3,6 +3,7 @@ import { firmMessages } from '../config/firms.messages'
 import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
 import { footerImagePath } from '../../../config/letterhead-footer-images.constants'
+import { generateBlankLetterheadPdf } from './letterhead-pdf.service'
 import type {
   Firm,
   FirmListResponse,
@@ -30,6 +31,17 @@ function normalizeConcernPersons(list: ConcernPersonInput[]): ConcernPerson[] {
 const SELECT_COLUMNS = `id, department, name, description, address, email,
                         contact_no, concern_persons, is_active,
                         created_at, updated_at`
+
+// Firm name → filename-safe slug (lowercase, non-alphanumerics collapsed to hyphens).
+// Used for the letter-head PDF download filename.
+function slugifyFirmName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'firm'
+  )
+}
 
 export const firmService = {
   // Trimmed firm options for the tax-client add / edit / list-filter dropdowns.
@@ -269,6 +281,52 @@ export const firmService = {
       [firmId],
     )
     return { items: result.rows.map((r) => this.enrichLetterheadVersion(r)) }
+  },
+
+  // The current (latest) version for a firm, or null if none exists yet.
+  async getLatestLetterheadVersion(firmId: string): Promise<FirmLetterheadVersion | null> {
+    const result = await db.query(
+      `SELECT lh.id, lh.firm_id, lh.version_no, lh.is_latest, lh.content,
+              lh.created_by,
+              CASE WHEN m.id IS NULL THEN NULL
+                   ELSE m.first_name || ' ' || m.last_name END AS created_by_name,
+              lh.created_at
+       FROM firm_letterheads lh
+       LEFT JOIN members m ON m.id = lh.created_by
+       WHERE lh.firm_id = $1 AND lh.is_latest = TRUE`,
+      [firmId],
+    )
+    if (result.rows.length === 0) return null
+    return this.enrichLetterheadVersion(result.rows[0])
+  },
+
+  // Generate a blank-letterhead PDF for a firm. With `versionId`, renders that exact
+  // version's snapshot; without one, renders the current (latest) version. Returns the
+  // PDF bytes plus a download filename. Tax-practice firms only (assertTaxFirm).
+  async getLetterheadPdf(
+    firmId: string,
+    versionId?: string,
+  ): Promise<{ pdf: Uint8Array; filename: string }> {
+    await this.assertTaxFirm(firmId)
+    const firm = await this.getById(firmId) // 404s if missing/deleted; gives the name
+
+    let version: FirmLetterheadVersion | null
+    if (versionId) {
+      version = await this.getLetterheadVersionById(versionId)
+      // The version must exist AND belong to this firm.
+      if (!version || version.firm_id !== firmId) {
+        throw new AppError(firmMessages.LETTERHEAD_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+      }
+    } else {
+      version = await this.getLatestLetterheadVersion(firmId)
+      if (!version) {
+        throw new AppError(firmMessages.LETTERHEAD_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+      }
+    }
+
+    const pdf = await generateBlankLetterheadPdf(version.content)
+    const filename = `${slugifyFirmName(firm.name)}-letterhead-v${version.version_no}.pdf`
+    return { pdf, filename }
   },
 
   // Save a new version: insert version_no+1 as the latest, demoting the prior latest.

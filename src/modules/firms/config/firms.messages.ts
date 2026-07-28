@@ -13,4 +13,5 @@ export const firmMessages = {
   LETTERHEAD_VERSIONS_FETCHED: 'Letter head versions fetched successfully',
   LETTERHEAD_IMAGES_FETCHED: 'Footer images fetched successfully',
   LETTERHEAD_SAVED: 'Letter head saved successfully',
+  LETTERHEAD_NOT_FOUND: 'No letter head found for this firm',
 }
