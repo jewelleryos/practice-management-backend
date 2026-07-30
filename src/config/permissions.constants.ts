@@ -130,6 +130,11 @@ export const PERMISSIONS = {
     // Gate for viewing client notes whose note-type is marked sensitive. Without
     // it, sensitive notes are excluded from responses entirely (never masked).
     VIEW_SENSITIVE_NOTES: 1005,
+    // Single gate for the whole Engagement Letter feature on a client: view the
+    // Engagement letter tab, create letters, download, and add notes. No
+    // CREATE/READ/UPDATE split (letters are immutable, notes add-only). Part of the
+    // TAX_CLIENT block (not its own module) since it lives inside the client profile.
+    MANAGE_ENGAGEMENT_LETTERS: 1006,
   },
   // Tax-practice tasks — work done for a tax client, per service, per period.
   // Department-scoped (like TAX_CLIENT); mortgage tasks get their own
@@ -206,6 +211,7 @@ export type PermissionAction =
   | 'CHANGE_WORK_STATUS'
   | 'ACCESS'
   | 'MANAGE_LETTERHEAD'
+  | 'MANAGE_ENGAGEMENT_LETTERS'
 
 export interface PermissionDef {
   code: number
@@ -382,6 +388,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.TAX_CLIENT.UPDATE, action: 'UPDATE', label: 'Edit clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.DELETE, action: 'DELETE', label: 'Delete clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.VIEW_SENSITIVE_NOTES, action: 'VIEW_SENSITIVE_NOTES', label: 'View sensitive notes', requires: [PERMISSIONS.TAX_CLIENT.READ] },
+      { code: PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS, action: 'MANAGE_ENGAGEMENT_LETTERS', label: 'Manage engagement letters', requires: [PERMISSIONS.TAX_CLIENT.READ] },
     ],
   },
   {

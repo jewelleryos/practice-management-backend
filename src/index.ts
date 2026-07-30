@@ -21,6 +21,7 @@ import { mortgagePersonalTaskRoutes } from './modules/mortgage-personal-tasks/ro
 import { taxClientRoutes } from './modules/tax-clients/routes/tax-clients.routes'
 import { taxTaskRoutes } from './modules/tax-tasks/routes/tax-tasks.routes'
 import { taxPersonalTaskRoutes } from './modules/tax-personal-tasks/routes/tax-personal-tasks.routes'
+import { engagementLetterRoutes } from './modules/engagement-letters/routes/engagement-letters.routes'
 import type { AppEnv } from './types/hono.types'
 
 const app = new Hono<AppEnv>()
@@ -64,6 +65,9 @@ app.route('/api/tax-clients', taxClientRoutes)
 // Department-scoped: Tax Practice tasks (firm + assigned-scoped visibility)
 app.route('/api/tax-tasks', taxTaskRoutes)
 app.route('/api/tax-personal-tasks', taxPersonalTaskRoutes)
+// Engagement letters — per-letter operations + notes (client-nested list/create
+// live under /api/tax-clients/:clientId/engagement-letters)
+app.route('/api/engagement-letters', engagementLetterRoutes)
 
 // Master data (name + description lookups)
 app.route('/api/entity-types', entityTypeRoutes)
