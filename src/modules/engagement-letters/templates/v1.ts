@@ -131,6 +131,23 @@ export const templateV1: EngagementLetterTemplate = {
     // Section heading — bold, static template text.
     const amlHeading = `<p style="font-weight:700;">Anti-Money Laundering and Counter-Terrorism Financing (AML/CTF) Obligations</p>`
 
+    // AML/CTF intro. Pronouns fixed (we are / us / we / our / we); the Act title is
+    // italicised (as in the source). Ends with a colon — a list follows.
+    const amlIntro = `<p>We are required to comply with the <em>Anti-Money Laundering and Counter-Terrorism Financing Act 2006</em> (AML/CTF Act) and related legislation (AML/CTF Legislation), in connection with any "designated services" (as defined in the AML/CTF Act) that you request from us, or that we provide to you. To comply with our AML/CTF obligations, we may be required to, among other things:</p>`
+
+    // AML/CTF list (a)–(d) — each item is its own paragraph with its literal marker.
+    // Pronouns fixed to the "we" forms.
+    const amlList = `<p>(a) conduct customer due diligence (CDD), including to verify your identity, and if relevant, the identity of other parties such as beneficial owners or those who may be acting on your behalf. We are also required to collect certain information before we can provide the designated service being requested. These obligations may apply even if you are an existing client.</p>
+<p>(b) monitor our clients for suspicious behaviour and transactions;</p>
+<p>(c) provide certain information or reports (including suspicious matter reports) to AUSTRAC; and</p>
+<p>(d) keep certain records for prescribed time periods.</p>`
+
+    // Closing paragraph after the list. Pronouns fixed (we / our / we).
+    const amlClose = `<p>If you do not or if you are unable to provide the information we require in order to comply with our AML/CTF obligations, or if we determine that the designated service requested or provided falls outside our risk appetite, we may suspend or terminate this engagement.</p>`
+
+    // Offence notice — static template text.
+    const amlOffence = `<p>Importantly, it is an offence under the AML/CTF Act to seek a designated service under a false name or anonymity, or to provide false or misleading information or documents as part of receiving a designated service.</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -143,6 +160,10 @@ ${noAssurance}
 ${irregularities}
 ${ethicalStandards}
 ${noclar}
-${amlHeading}`
+${amlHeading}
+${amlIntro}
+${amlList}
+${amlClose}
+${amlOffence}`
   },
 }
