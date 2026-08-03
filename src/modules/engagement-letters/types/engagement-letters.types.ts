@@ -52,9 +52,34 @@ export interface EngagementLetterTemplateInfo {
 }
 
 // Context the create screen needs before showing the form: whether the client's
-// firm has a letter head (else "not configured yet"), plus the active template's
-// version + parameter defs (so the frontend picks the matching fields component).
+// One resolved person the letter can be addressed to — the client itself (person
+// client) or one of its person relations (company client). Address is already
+// composed into a display string (may be multi-line, '\n'-separated).
+export interface EngagementLetterAddresseePerson {
+  id: string
+  name: string
+  address: string
+  email: string | null
+}
+
+// The addressee options the create screen needs:
+// - person client → `self` is the client's own details; `relation_options` empty.
+// - company client → `self` is null; `relation_options` are the client's PERSON
+//   relations (is_company = false, any relation type, both directions) to choose
+//   from. `needs_relation` is true when a company has no person relation yet (the
+//   UI shows "add a relation first" and blocks generation).
+export interface EngagementLetterAddressee {
+  is_company: boolean
+  self: EngagementLetterAddresseePerson | null
+  relation_options: EngagementLetterAddresseePerson[]
+  needs_relation: boolean
+}
+
+// firm has a letter head (else "not configured yet"), the active template's
+// version + parameter defs (so the frontend picks the matching fields component),
+// and the addressee block (client name / address / email + relation choices).
 export interface EngagementLetterCreateContext {
   has_letterhead: boolean
   template: EngagementLetterTemplateInfo
+  addressee: EngagementLetterAddressee
 }

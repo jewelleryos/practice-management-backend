@@ -16,10 +16,29 @@ import type {
   EngagementLetterNote,
   EngagementLetterTemplateInfo,
   EngagementLetterCreateContext,
+  EngagementLetterAddressee,
+  EngagementLetterAddresseePerson,
 } from '../types/engagement-letters.types'
 
 // SQL fragment: a member's display name.
 const MEMBER_NAME = `TRIM(m.first_name || ' ' || COALESCE(m.last_name, ''))`
+
+// The tax_client columns needed to render an addressee (name + address line + email).
+// Parameterised by table alias so the same list serves the client itself and a
+// related client, e.g. ADDRESSEE_COLS('oc').
+const ADDRESSEE_COLS = (t: string) => `${t}.id, ${t}.name, ${t}.address_line, ${t}.email`
+
+// The client's address for the letter — just the street address line. Suburb /
+// state / postcode are intentionally NOT included (the letter shows only the
+// address line). Returns '' when blank, so the template drops the line entirely.
+function composeAddress(row: { address_line: string | null }): string {
+  return (row.address_line ?? '').trim()
+}
+
+// Map a tax_client row (selected via ADDRESSEE_COLS) to an addressee person.
+function toAddresseePerson(row: any): EngagementLetterAddresseePerson {
+  return { id: row.id, name: row.name, address: composeAddress(row), email: row.email ?? null }
+}
 
 export const engagementLetterService = {
   // Firms this member can act in: their granted firms in the tax_practice department.
@@ -106,18 +125,100 @@ export const engagementLetterService = {
     }
   },
 
+  // A client's identity row for the addressee (name + company flag + address + email).
+  async clientIdentity(clientId: string): Promise<any> {
+    const result = await db.query(
+      `SELECT ${ADDRESSEE_COLS('c')}, c.is_company
+       FROM tax_clients c
+       WHERE c.id = $1 AND c.is_deleted = FALSE`,
+      [clientId],
+    )
+    return result.rows[0]
+  },
+
+  // The client's PERSON relations — every related client that is NOT a company
+  // (is_company = false), any relation type, in BOTH directions (this client as
+  // client_id or as related_client_id), de-duplicated. These are the options a
+  // COMPANY client's letter can be addressed to.
+  async personRelations(clientId: string): Promise<EngagementLetterAddresseePerson[]> {
+    const result = await db.query(
+      `SELECT ${ADDRESSEE_COLS('oc')}
+       FROM tax_client_relationships r
+       JOIN tax_clients oc ON oc.id = r.related_client_id AND oc.is_deleted = FALSE AND oc.is_company = FALSE
+       WHERE r.client_id = $1 AND r.is_deleted = FALSE
+       UNION
+       SELECT ${ADDRESSEE_COLS('oc')}
+       FROM tax_client_relationships r
+       JOIN tax_clients oc ON oc.id = r.client_id AND oc.is_deleted = FALSE AND oc.is_company = FALSE
+       WHERE r.related_client_id = $1 AND r.is_deleted = FALSE
+       ORDER BY name`,
+      [clientId],
+    )
+    return result.rows.map(toAddresseePerson)
+  },
+
+  // Build the addressee block for the create screen (see EngagementLetterAddressee).
+  async buildAddressee(clientId: string): Promise<EngagementLetterAddressee> {
+    const client = await this.clientIdentity(clientId)
+    if (client?.is_company) {
+      const relation_options = await this.personRelations(clientId)
+      return { is_company: true, self: null, relation_options, needs_relation: relation_options.length === 0 }
+    }
+    // Person client → addresses itself; no relations to choose from.
+    return {
+      is_company: false,
+      self: client ? toAddresseePerson(client) : null,
+      relation_options: [],
+      needs_relation: false,
+    }
+  },
+
+  // Resolve WHOSE details to freeze onto the letter, and return the snapshot params.
+  // Person client → the client itself (relative_id null). Company client → the
+  // chosen PERSON relation (relative_id required and validated firm-scoped).
+  async resolveAddresseeSnapshot(clientId: string, relativeId: string | null | undefined) {
+    const client = await this.clientIdentity(clientId)
+    let person: EngagementLetterAddresseePerson
+    let relative_id: string | null = null
+
+    if (client?.is_company) {
+      if (!relativeId) {
+        throw new AppError(engagementLetterMessages.RELATIVE_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+      }
+      const options = await this.personRelations(clientId)
+      const match = options.find((o) => o.id === relativeId)
+      if (!match) {
+        throw new AppError(engagementLetterMessages.INVALID_RELATIVE, HTTP_STATUS.BAD_REQUEST)
+      }
+      person = match
+      relative_id = relativeId
+    } else {
+      // Person client addresses itself; any submitted relative_id is ignored.
+      person = toAddresseePerson(client)
+    }
+
+    return {
+      relative_id,
+      client_name: person.name,
+      client_address: person.address,
+      client_email: person.email,
+    }
+  },
+
   // ── CREATE-CONTEXT — what the create screen needs before showing the form ──
   // Whether the client's firm has a letter head (else the UI shows "not configured
-  // yet — create the letter head first"), plus the active template's version +
-  // parameter defs. Firm-scoped like everything else; no letterhead permission
-  // needed (governed by MANAGE_ENGAGEMENT_LETTERS).
+  // yet — create the letter head first"), the active template's version + parameter
+  // defs, and the addressee block (client name / address / email + relation choices).
+  // Firm-scoped like everything else; no letterhead permission needed (governed by
+  // MANAGE_ENGAGEMENT_LETTERS).
   async createContext(actingUser: AuthUser, clientId: string): Promise<EngagementLetterCreateContext> {
     const { firm_id } = await this.assertClientAccessible(actingUser, clientId)
     const lh = await db.query(
       `SELECT 1 FROM firm_letterheads WHERE firm_id = $1 AND is_latest = TRUE`,
       [firm_id],
     )
-    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo() }
+    const addressee = await this.buildAddressee(clientId)
+    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee }
   },
 
   // ── CREATE — a new letter for a client ──
@@ -133,6 +234,11 @@ export const engagementLetterService = {
     // Reject bad/missing params up front (per the latest template's field set).
     this.validateParams(LATEST_VERSION, input.params ?? {})
 
+    // Resolve the addressee server-side and FREEZE the snapshot into params (never
+    // trust client-sent name/address/email — the relative_id is the source of truth).
+    const addressee = await this.resolveAddresseeSnapshot(clientId, input.relative_id)
+    const params = { ...(input.params ?? {}), ...addressee }
+
     // The firm's current letter head (header/footer) is pinned to the letter.
     const lh = await db.query(
       `SELECT id FROM firm_letterheads WHERE firm_id = $1 AND is_latest = TRUE`,
@@ -147,7 +253,7 @@ export const engagementLetterService = {
       `INSERT INTO engagement_letters (client_id, firm_id, template_version, letterhead_id, params, created_by)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6)
        RETURNING id`,
-      [clientId, firm_id, LATEST_VERSION, letterheadId, JSON.stringify(input.params ?? {}), actingUser.id],
+      [clientId, firm_id, LATEST_VERSION, letterheadId, JSON.stringify(params), actingUser.id],
     )
     return this.getById(actingUser, inserted.rows[0].id)
   },

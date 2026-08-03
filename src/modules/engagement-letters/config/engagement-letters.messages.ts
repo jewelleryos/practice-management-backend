@@ -15,6 +15,12 @@ export const engagementLetterMessages = {
   MISSING_REQUIRED_FIELD: 'Please fill in all required fields',
   INVALID_DATE: 'Please choose a valid date',
 
+  // Addressee (who the letter is written to).
+  // A company client was submitted without choosing which related person to address.
+  RELATIVE_REQUIRED: 'Please choose the person this letter is addressed to',
+  // The chosen person is not a person relation of this client.
+  INVALID_RELATIVE: 'The selected person is not a relation of this client',
+
   NOTES_FETCHED: 'Notes fetched successfully',
   NOTE_ADDED: 'Note added successfully',
 

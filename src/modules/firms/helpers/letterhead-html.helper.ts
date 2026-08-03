@@ -247,7 +247,7 @@ ${fontStyle}
   body {
     font-family: ${FONT_STACK};
     color: ${COLORS.ink};
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.55;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -257,7 +257,7 @@ ${fontStyle}
      Top/bottom breathing room lives in the header/footer templates (see HEADER_BODY_GAP_MM)
      so it's identical on every page, not just the first/last. */
   .letter-body { padding: 0 10px; }
-  .letter-body p { margin-bottom: 10px; text-align: justify; }
+  .letter-body p { margin-bottom: 13px; text-align: justify; }
   .para-no { font-weight: 700; color: ${COLORS.navy}; margin-right: 4px; }
   .body-title { font-size: 15px; font-weight: 700; color: ${COLORS.navy}; margin-bottom: 12px; }
 </style>
