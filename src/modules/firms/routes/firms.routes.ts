@@ -94,6 +94,8 @@ function pdfResponse(pdf: Uint8Array, filename: string): Response {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
+      // Always regenerated on the fly — never let the browser serve a stale copy.
+      'Cache-Control': 'no-store',
     },
   })
 }
