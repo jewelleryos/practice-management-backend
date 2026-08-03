@@ -49,6 +49,7 @@ export interface CreateTaxClientRequest {
   locality?: string | null
   state_code?: string | null
   postcode?: string | null
+  email?: string | null
   bank_account_name?: string | null
   bank_account_prefix?: string | null
   bank_account_number?: string | null
@@ -80,6 +81,7 @@ export interface UpdateTaxClientRequest {
   locality?: string | null
   state_code?: string | null
   postcode?: string | null
+  email?: string | null
   bank_account_name?: string | null
   bank_account_prefix?: string | null
   bank_account_number?: string | null
@@ -186,6 +188,7 @@ export interface TaxClientDetail {
   state: string | null
   state_code: string | null
   postcode: string | null
+  email: string | null
   bank_account_name: string | null
   bank_account_prefix: string | null
   bank_account_number: string | null

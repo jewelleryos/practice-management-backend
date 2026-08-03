@@ -22,6 +22,9 @@ export const taxClientMessages = {
   INVALID_STATE: 'Selected state is not valid',
   INVALID_POSTCODE: 'Postcode must be 4 digits',
 
+  // Contact
+  INVALID_EMAIL: 'Email address is not valid',
+
   // Relationships
   RELATION_TYPE_NOT_FOUND: 'Selected relation type does not exist',
   RELATED_CLIENT_NOT_FOUND: 'A related client does not exist',

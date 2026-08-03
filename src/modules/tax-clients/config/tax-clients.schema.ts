@@ -47,6 +47,17 @@ const optionalPostcode = z
   .nullish()
   .or(z.literal('').transform(() => null))
 
+// Contact email — a valid address, or null. Empty string → null. Trimmed and
+// lower-cased so storage/lookups/display stay consistent.
+const optionalEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(255)
+  .email(taxClientMessages.INVALID_EMAIL)
+  .nullish()
+  .or(z.literal('').transform(() => null))
+
 // Date-only string (YYYY-MM-DD) or null.
 const optionalDate = z
   .string()
@@ -96,6 +107,7 @@ export const createTaxClientSchema = z.object({
   locality: optionalText(120),
   state_code: optionalStateCode,
   postcode: optionalPostcode,
+  email: optionalEmail,
   bank_account_name: optionalText(200),
   bank_account_prefix: optionalText(6),
   bank_account_number: optionalText(9),
@@ -124,6 +136,7 @@ export const updateTaxClientSchema = z.object({
   locality: optionalText(120),
   state_code: optionalStateCode,
   postcode: optionalPostcode,
+  email: optionalEmail,
   bank_account_name: optionalText(200),
   bank_account_prefix: optionalText(6),
   bank_account_number: optionalText(9),

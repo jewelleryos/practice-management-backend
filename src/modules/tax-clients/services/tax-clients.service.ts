@@ -118,6 +118,7 @@ export const taxClientService = {
               c.entity_type_id, et.name AS entity_type_name,
               c.dob_or_incorporation_date, c.abn, c.acn, c.trading_name,
               c.address_line, c.locality, c.state, c.state_code, c.postcode,
+              c.email,
               c.bank_account_name, c.bank_account_prefix, c.bank_account_number,
               c.director_id,
               c.client_group_id, cg.name AS client_group_name,
@@ -358,8 +359,9 @@ export const taxClientService = {
            dob_or_incorporation_date, abn, acn, trading_name,
            address_line, locality, state, state_code, postcode,
            bank_account_name, bank_account_prefix, bank_account_number,
-           director_id, client_group_id, software_id, assignee_id, status
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+           director_id, client_group_id, software_id, assignee_id, status,
+           email
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
          RETURNING id`,
         [
           data.firm_id,
@@ -386,6 +388,7 @@ export const taxClientService = {
           data.software_id ?? null,
           data.assignee_id ?? null,
           data.status,
+          data.email ?? null,
         ],
       )
       const clientId = inserted.rows[0].id as string
@@ -575,6 +578,7 @@ export const taxClientService = {
         set('state_code', data.state_code ?? null)
       }
       if (data.postcode !== undefined) set('postcode', data.postcode ?? null)
+      if (data.email !== undefined) set('email', data.email ?? null)
       if (data.bank_account_name !== undefined) set('bank_account_name', data.bank_account_name ?? null)
       if (data.bank_account_prefix !== undefined) set('bank_account_prefix', data.bank_account_prefix ?? null)
       if (data.bank_account_number !== undefined) set('bank_account_number', data.bank_account_number ?? null)
