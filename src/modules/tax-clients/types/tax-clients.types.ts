@@ -45,6 +45,10 @@ export interface CreateTaxClientRequest {
   abn?: string | null
   acn?: string | null
   trading_name?: string | null
+  address_line?: string | null
+  locality?: string | null
+  state_code?: string | null
+  postcode?: string | null
   bank_account_name?: string | null
   bank_account_prefix?: string | null
   bank_account_number?: string | null
@@ -72,6 +76,10 @@ export interface UpdateTaxClientRequest {
   abn?: string | null
   acn?: string | null
   trading_name?: string | null
+  address_line?: string | null
+  locality?: string | null
+  state_code?: string | null
+  postcode?: string | null
   bank_account_name?: string | null
   bank_account_prefix?: string | null
   bank_account_number?: string | null
@@ -173,6 +181,11 @@ export interface TaxClientDetail {
   abn: string | null
   acn: string | null
   trading_name: string | null
+  address_line: string | null
+  locality: string | null
+  state: string | null
+  state_code: string | null
+  postcode: string | null
   bank_account_name: string | null
   bank_account_prefix: string | null
   bank_account_number: string | null

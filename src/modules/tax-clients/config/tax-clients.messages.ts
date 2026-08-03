@@ -18,6 +18,10 @@ export const taxClientMessages = {
   SOFTWARE_NOT_FOUND: 'Selected software does not exist',
   ASSIGNEE_NOT_FOUND: 'Selected assignee is not a valid member',
 
+  // Address
+  INVALID_STATE: 'Selected state is not valid',
+  INVALID_POSTCODE: 'Postcode must be 4 digits',
+
   // Relationships
   RELATION_TYPE_NOT_FOUND: 'Selected relation type does not exist',
   RELATED_CLIENT_NOT_FOUND: 'A related client does not exist',

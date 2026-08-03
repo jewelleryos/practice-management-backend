@@ -5,6 +5,7 @@ import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
 import { PERMISSIONS } from '../../../config/permissions.constants'
 import { SERVICE_FREQUENCY_VALUES } from '../../../config/service-frequencies.constants'
+import { australianStateName } from '../../../config/australian-states.constants'
 import type { AuthUser } from '../../../middleware/auth.middleware'
 import type {
   CreateTaxClientRequest,
@@ -116,6 +117,7 @@ export const taxClientService = {
               c.name, c.is_company, c.gender, c.title,
               c.entity_type_id, et.name AS entity_type_name,
               c.dob_or_incorporation_date, c.abn, c.acn, c.trading_name,
+              c.address_line, c.locality, c.state, c.state_code, c.postcode,
               c.bank_account_name, c.bank_account_prefix, c.bank_account_number,
               c.director_id,
               c.client_group_id, cg.name AS client_group_name,
@@ -354,9 +356,10 @@ export const taxClientService = {
         `INSERT INTO tax_clients (
            firm_id, name, is_company, gender, title, entity_type_id,
            dob_or_incorporation_date, abn, acn, trading_name,
+           address_line, locality, state, state_code, postcode,
            bank_account_name, bank_account_prefix, bank_account_number,
            director_id, client_group_id, software_id, assignee_id, status
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          RETURNING id`,
         [
           data.firm_id,
@@ -369,6 +372,12 @@ export const taxClientService = {
           data.abn ?? null,
           data.acn ?? null,
           data.trading_name ?? null,
+          data.address_line ?? null,
+          data.locality ?? null,
+          // State is stored as both the full name (derived) and the code.
+          australianStateName(data.state_code),
+          data.state_code ?? null,
+          data.postcode ?? null,
           data.bank_account_name ?? null,
           data.bank_account_prefix ?? null,
           data.bank_account_number ?? null,
@@ -558,6 +567,14 @@ export const taxClientService = {
       if (data.abn !== undefined) set('abn', data.abn ?? null)
       if (data.acn !== undefined) set('acn', data.acn ?? null)
       if (data.trading_name !== undefined) set('trading_name', data.trading_name ?? null)
+      if (data.address_line !== undefined) set('address_line', data.address_line ?? null)
+      if (data.locality !== undefined) set('locality', data.locality ?? null)
+      // State code + derived full name are kept in sync.
+      if (data.state_code !== undefined) {
+        set('state', australianStateName(data.state_code))
+        set('state_code', data.state_code ?? null)
+      }
+      if (data.postcode !== undefined) set('postcode', data.postcode ?? null)
       if (data.bank_account_name !== undefined) set('bank_account_name', data.bank_account_name ?? null)
       if (data.bank_account_prefix !== undefined) set('bank_account_prefix', data.bank_account_prefix ?? null)
       if (data.bank_account_number !== undefined) set('bank_account_number', data.bank_account_number ?? null)
