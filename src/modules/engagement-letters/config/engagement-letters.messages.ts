@@ -22,6 +22,8 @@ export const engagementLetterMessages = {
   RELATIVE_REQUIRED: 'Please choose the person this letter is addressed to',
   // The chosen person is not a person relation of this client.
   INVALID_RELATIVE: 'The selected person is not a relation of this client',
+  // No (valid) service was chosen — the letter must list at least one.
+  SERVICES_REQUIRED: 'Please select at least one service',
 
   NOTES_FETCHED: 'Notes fetched successfully',
   NOTE_ADDED: 'Note added successfully',

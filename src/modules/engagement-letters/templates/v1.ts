@@ -88,12 +88,61 @@ export const templateV1: EngagementLetterTemplate = {
     // Lead-in to the services list. The "we" pronoun is fixed (firm writes as "we").
     const servicesIntro = `<p>You have requested that we provide the following services:</p>`
 
+    // The chosen services — frozen as { name, description }, printed as a bulleted
+    // list (name, then the optional description on the line below). Stored pre-sorted
+    // (alphabetical) by the service; blanks are skipped defensively. A plain-string
+    // entry is tolerated (older shape) as a name with no description.
+    const serviceItems = (Array.isArray(params.services) ? params.services : [])
+      .map((s) => {
+        if (typeof s === 'string') return { name: s.trim(), description: '' }
+        if (s && typeof s === 'object') {
+          const rec = s as Record<string, unknown>
+          const name = typeof rec.name === 'string' ? rec.name.trim() : ''
+          const description = typeof rec.description === 'string' ? rec.description.trim() : ''
+          return { name, description }
+        }
+        return { name: '', description: '' }
+      })
+      .filter((s) => s.name !== '')
+    const servicesList = serviceItems.length
+      ? `<ul style="margin:0 0 13px 22px;padding:0;">${serviceItems
+          .map((s) => {
+            const desc = s.description
+              ? `<br/><span style="color:#5b6573;">${escapeHtml(s.description)}</span>`
+              : ''
+            return `<li style="margin-bottom:6px;">${escapeHtml(s.name)}${desc}</li>`
+          })
+          .join('')}</ul>`
+      : ''
+
+    // Assurance disclaimer after the services list. The "we" pronoun is fixed.
+    const noAssurance = `<p>Please be aware that we will not conduct an audit or review as a service to be performed for you and accordingly, no assurance will be expressed.</p>`
+
+    // Irregularities disclaimer. The "we"/"our" pronouns are fixed.
+    const irregularities = `<p>Unless specified above as a service to be performed for you, this engagement cannot be relied upon to disclose irregularities including fraud, other illegal acts and errors that may occur. However, we will inform you of such matters if they come to our attention.</p>`
+
+    // Professional/ethical standards statement. The "we" pronoun is fixed; the code's
+    // title is italicised (as in the source), "APES 110" stays upright.
+    const ethicalStandards = `<p>We will perform Services in accordance with professional and ethical. These standards require that, in undertaking this engagement, we comply with the relevant ethical requirements of APES 110 <em>Code of Ethics for Professional Accountants (including Independence Standards)</em>.</p>`
+
+    // NOCLAR statement. The "we are" pronoun is fixed.
+    const noclar = `<p>Pursuant to the Responding to Non-Compliance with Laws and Regulations (NOCLAR) requirements of APES 110, we are required to report any material, actual or potential non-compliance with laws and regulations or acts of omission or commission, intentional or unintentional by a client or by those charged with governance, by management or by other individuals working for or under the direction of a client which are contrary to the prevailing laws or regulations.</p>`
+
+    // Section heading — bold, static template text.
+    const amlHeading = `<p style="font-weight:700;">Anti-Money Laundering and Counter-Terrorism Financing (AML/CTF) Obligations</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
 ${terms}
 ${intro}
 ${objective}
-${servicesIntro}`
+${servicesIntro}
+${servicesList}
+${noAssurance}
+${irregularities}
+${ethicalStandards}
+${noclar}
+${amlHeading}`
   },
 }

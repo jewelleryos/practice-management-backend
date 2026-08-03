@@ -116,6 +116,18 @@ const BLOCK_CSS = `
   }
   .footer-img { display: block; height: auto; max-height: 64px; width: auto; }
   .footer-missing { font-size: 13px; color: ${COLORS.inkMuted}; padding: 8px 0; }
+  .footer-note {
+    margin-top: 8px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 11px;
+    line-height: 15px;
+    color: ${COLORS.inkMuted};
+  }
+  .footer-note .note-left { text-align: left; }
+  .footer-note .note-page { text-align: right; white-space: nowrap; }
 `
 
 // ── Embedded Inter (base64) ──
@@ -214,7 +226,13 @@ export function buildFooterTemplate(footerImageDataUri: string | null, fontStyle
   }
 </style>
 <div class="lh-footer">
-  <div class="footer">${footerHtml}</div>
+  <div class="footer">
+    ${footerHtml}
+    <div class="footer-note">
+      <span class="note-left">Liability limited by a scheme approved under Professional Standards Legislation</span>
+      <span class="note-page">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+    </div>
+  </div>
 </div>`
 }
 

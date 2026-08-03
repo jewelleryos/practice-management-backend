@@ -75,11 +75,28 @@ export interface EngagementLetterAddressee {
   needs_relation: boolean
 }
 
+// One active tax-practice service the letter can list (id + display name).
+export interface EngagementLetterServiceOption {
+  id: string
+  name: string
+}
+
+// The services block the create screen needs: `all` is every active tax-practice
+// service (the checkbox list, alphabetical); `default_ids` are the services the
+// client currently uses (pre-checked). Letter-only — selecting here never writes
+// tax_client_services.
+export interface EngagementLetterServices {
+  all: EngagementLetterServiceOption[]
+  default_ids: string[]
+}
+
 // firm has a letter head (else "not configured yet"), the active template's
 // version + parameter defs (so the frontend picks the matching fields component),
-// and the addressee block (client name / address / email + relation choices).
+// the addressee block (client name / address / email + relation choices), and the
+// services block (all services + the client's current ones pre-checked).
 export interface EngagementLetterCreateContext {
   has_letterhead: boolean
   template: EngagementLetterTemplateInfo
   addressee: EngagementLetterAddressee
+  services: EngagementLetterServices
 }

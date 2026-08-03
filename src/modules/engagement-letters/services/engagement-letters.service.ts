@@ -18,6 +18,8 @@ import type {
   EngagementLetterCreateContext,
   EngagementLetterAddressee,
   EngagementLetterAddresseePerson,
+  EngagementLetterServices,
+  EngagementLetterServiceOption,
 } from '../types/engagement-letters.types'
 
 // SQL fragment: a member's display name.
@@ -220,6 +222,68 @@ export const engagementLetterService = {
     }
   },
 
+  // ── SERVICES (letter-only) ──
+  // Every ACTIVE tax-practice service (id + name), alphabetical — the checkbox list.
+  // Services are department-level master data (no firm scoping).
+  async taxServiceOptions(): Promise<EngagementLetterServiceOption[]> {
+    const result = await db.query(
+      `SELECT id, name FROM services
+       WHERE department = 'tax_practice' AND is_deleted = FALSE
+       ORDER BY name`,
+    )
+    return result.rows as EngagementLetterServiceOption[]
+  },
+
+  // The active tax-practice services this client currently uses — the ids that start
+  // ticked on the form. Read-only: we never write tax_client_services from here.
+  async clientServiceIds(clientId: string): Promise<string[]> {
+    const result = await db.query(
+      `SELECT DISTINCT s.id
+       FROM tax_client_services tcs
+       JOIN services s ON s.id = tcs.service_id
+         AND s.is_deleted = FALSE AND s.department = 'tax_practice'
+       WHERE tcs.client_id = $1 AND tcs.is_deleted = FALSE`,
+      [clientId],
+    )
+    return result.rows.map((r) => r.id as string)
+  },
+
+  // The services block for the create screen (all services + client's current ids).
+  async buildServices(clientId: string): Promise<EngagementLetterServices> {
+    const [all, default_ids] = await Promise.all([
+      this.taxServiceOptions(),
+      this.clientServiceIds(clientId),
+    ])
+    return { all, default_ids }
+  },
+
+  // Resolve the chosen services → their NAME (active tax-practice only) paired with
+  // the user's OPTIONAL description, sorted alphabetically by name, to FREEZE into the
+  // letter. At least one valid service is required (invalid/deleted/foreign ids are
+  // dropped; if nothing valid remains, we reject).
+  async resolveServicesSnapshot(
+    selections: { id: string; description?: string }[] | undefined,
+  ): Promise<{ name: string; description: string }[]> {
+    const list = Array.isArray(selections) ? selections : []
+    if (list.length === 0) {
+      throw new AppError(engagementLetterMessages.SERVICES_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    const result = await db.query(
+      `SELECT id, name FROM services
+       WHERE id = ANY($1::text[]) AND department = 'tax_practice' AND is_deleted = FALSE`,
+      [list.map((s) => s.id)],
+    )
+    const nameById = new Map(result.rows.map((r) => [r.id as string, r.name as string]))
+    const resolved = list
+      .filter((s) => nameById.has(s.id))
+      .map((s) => ({ name: nameById.get(s.id) as string, description: (s.description ?? '').trim() }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    if (resolved.length === 0) {
+      throw new AppError(engagementLetterMessages.SERVICES_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    return resolved
+  },
+
   // ── CREATE-CONTEXT — what the create screen needs before showing the form ──
   // Whether the client's firm has a letter head (else the UI shows "not configured
   // yet — create the letter head first"), the active template's version + parameter
@@ -233,7 +297,8 @@ export const engagementLetterService = {
       [firm_id],
     )
     const addressee = await this.buildAddressee(clientId)
-    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee }
+    const services = await this.buildServices(clientId)
+    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee, services }
   },
 
   // ── CREATE — a new letter for a client ──
@@ -249,10 +314,13 @@ export const engagementLetterService = {
     // Reject bad/missing params up front (per the latest template's field set).
     this.validateParams(LATEST_VERSION, input.params ?? {})
 
-    // Resolve the addressee server-side and FREEZE the snapshot into params (never
-    // trust client-sent name/address/email — the relative_id is the source of truth).
+    // Resolve the addressee + services server-side and FREEZE the snapshots into
+    // params (never trust client-sent names — ids are the source of truth). The
+    // addressee is derived from relative_id; `services` is the list of chosen service
+    // NAMES (active tax-practice), frozen as text so the letter never drifts.
     const addressee = await this.resolveAddresseeSnapshot(clientId, input.relative_id)
-    const params = { ...(input.params ?? {}), ...addressee }
+    const services = await this.resolveServicesSnapshot(input.services)
+    const params = { ...(input.params ?? {}), ...addressee, services }
 
     // The firm's current letter head (header/footer) is pinned to the letter.
     const lh = await db.query(
