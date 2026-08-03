@@ -46,7 +46,13 @@ export const templateV1: EngagementLetterTemplate = {
 
   // User-entered form fields only. The addressee (name/address/email) is derived
   // server-side from the client / chosen relation, so it is not listed here.
-  parameters: [{ key: 'letter_date', label: 'Date', type: 'date', required: true }],
+  // discussion_date is the date of the discussions the letter follows up on; it
+  // defaults to the letter date and must be on or before it (enforced in the
+  // service's validateParams).
+  parameters: [
+    { key: 'letter_date', label: 'Date', type: 'date', required: true },
+    { key: 'discussion_date', label: 'Discussion date', type: 'date', required: true },
+  ],
 
   renderBody(params) {
     const dateHtml = formatLetterDate(params.letter_date)
@@ -65,9 +71,29 @@ export const templateV1: EngagementLetterTemplate = {
       ? `<p style="text-align:left;font-weight:600;">Terms of Engagement for ${escapeHtml(entityName)}</p>`
       : ''
 
+    // Opening block. Both sentences live in ONE paragraph, separated by a line break
+    // (not a paragraph gap) so they sit on consecutive lines like the source letter.
+    // The "we are" pronoun is fixed (the firm always writes as "we"); the discussion
+    // date is a separate calendar value from the letter date.
+    const discussionHtml = formatLetterDate(params.discussion_date)
+    const line1 = discussionHtml
+      ? `Further to our discussions on ${escapeHtml(discussionHtml)}, we are pleased to accept your appointment to Following Services.`
+      : ''
+    const line2 = `This document sets out our terms of engagement. Any changes must be mutually agreed and confirmed in writing.`
+    const intro = `<p>${[line1, line2].filter(Boolean).join('<br/>')}</p>`
+
+    // Section heading — bold, static template text.
+    const objective = `<p style="font-weight:700;">Objective and Scope of Services</p>`
+
+    // Lead-in to the services list. The "we" pronoun is fixed (firm writes as "we").
+    const servicesIntro = `<p>You have requested that we provide the following services:</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
-${terms}`
+${terms}
+${intro}
+${objective}
+${servicesIntro}`
   },
 }

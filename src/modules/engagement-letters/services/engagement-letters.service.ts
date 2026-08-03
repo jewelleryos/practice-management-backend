@@ -123,6 +123,21 @@ export const engagementLetterService = {
         }
       }
     }
+
+    // Cross-field (v1): the discussion date must be on or before the letter date.
+    // Both are YYYY-MM-DD strings, so a plain string comparison is chronological.
+    const letterDate = params.letter_date
+    const discussionDate = params.discussion_date
+    if (
+      typeof letterDate === 'string' &&
+      typeof discussionDate === 'string' &&
+      discussionDate > letterDate
+    ) {
+      throw new AppError(
+        engagementLetterMessages.DISCUSSION_DATE_AFTER_LETTER,
+        HTTP_STATUS.BAD_REQUEST,
+      )
+    }
   },
 
   // A client's identity row for the addressee (name + company flag + address + email).

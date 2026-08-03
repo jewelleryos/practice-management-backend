@@ -14,6 +14,8 @@ export const engagementLetterMessages = {
   // Per-version parameter validation.
   MISSING_REQUIRED_FIELD: 'Please fill in all required fields',
   INVALID_DATE: 'Please choose a valid date',
+  // The discussion date sits after the letter date (it must be on or before it).
+  DISCUSSION_DATE_AFTER_LETTER: 'The discussion date must be on or before the letter date',
 
   // Addressee (who the letter is written to).
   // A company client was submitted without choosing which related person to address.
