@@ -407,6 +407,15 @@ export const templateV1: EngagementLetterTemplate = {
 <p>We may disclose personal information to overseas recipients in order to provide necessary services and for administrative or other business management purposes. Before disclosing any personal information to an overseas recipient, we take steps reasonable in the circumstances to ensure the overseas recipient complies with the Australian Privacy Principles or is bound by a substantially similar privacy scheme unless you consent to the overseas disclosure or it is otherwise required or permitted by law.</p>
 <p>If you would like to access, or seek correction of, the personal information we collect and hold about you, or otherwise enquire or complain about our approach to privacy, please contact our privacy compliance officer on ${escapeHtml(str(params.firm_contact_no))} or at ${escapeHtml(str(params.firm_email))}. Our privacy policy contains further information about these processes.</p>`
 
+    // Third Party Involvement — bold heading + static paragraphs. Pronouns fixed
+    // (we / our / us). Partial for now: more paragraphs to be added later.
+    const thirdPartyHeading = `<p style="font-weight:700;">Third Party Involvement</p>`
+    const thirdParty = `<p>At times we may outsource some of our work which involves us entering into an agreement with a third party to provide specific processes, functions, services or activities for us. If we decide to do this as part of performing the services for you, we will contact you first to seek your approval to engage other parties.</p>
+<p>In providing our services, we use Google Drive, a cloud storage service provided by Google LLC, to securely store signed PDF documents and related records. These documents may be stored and processed on Google's servers located in various countries where Google or its service providers operate data centres.</p>
+<p>This terms of engagement is a contract between you and ${escapeHtml(str(params.firm_name))}, and you agree that none of the third parties we use will have any liability to you and you will not bring any claim or proceedings of any nature in connection with this engagement against any third party that we may use to provide the services. This exclusion will not apply to any liability, claim or proceeding founded on an allegation of fraud or other liability that cannot be excluded under law.</p>
+<p>Please contact us if you have any queries about this engagement. Please sign and return the confirmation of acceptance of this engagement.</p>
+<p>We thank you for the opportunity to provide professional accounting services to both yourself and your business.</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -452,6 +461,8 @@ ${quality}
 ${standardsHeading}
 ${standards}
 ${privacyHeading}
-${privacy}`
+${privacy}
+${thirdPartyHeading}
+${thirdParty}`
   },
 }
