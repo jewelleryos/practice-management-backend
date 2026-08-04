@@ -21,6 +21,13 @@ export const engagementLetterMessages = {
   // The engagement period ends before it starts.
   ENGAGEMENT_END_BEFORE_START: 'The engagement period end date must be on or after the start date',
 
+  // Professional Fees — how fees are charged, and the per-mode detail required.
+  INVALID_FEE_MODE: 'Please choose how fees are charged',
+  FEE_HOURLY_REQUIRED:
+    'Add at least one fee row with an employee type and rate, and enter a total estimated fee',
+  FEE_SERVICE_REQUIRED: 'Enter a fee amount for each selected service',
+  FEE_LUMPSUM_REQUIRED: 'Add at least one financial year with an amount',
+
   // Addressee (who the letter is written to).
   // A company client was submitted without choosing which related person to address.
   RELATIVE_REQUIRED: 'Please choose the person this letter is addressed to',

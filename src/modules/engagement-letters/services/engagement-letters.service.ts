@@ -4,7 +4,7 @@ import { HTTP_STATUS } from '../../../config/constants'
 import type { AuthUser } from '../../../middleware/auth.middleware'
 import { engagementLetterMessages } from '../config/engagement-letters.messages'
 import { getTemplate, LATEST_VERSION } from '../templates'
-import { RESPONSIBILITY_TYPES } from '../templates/v1'
+import { RESPONSIBILITY_TYPES, FEE_MODES } from '../templates/v1'
 import { generateEngagementLetterPdf } from './engagement-letter-pdf.service'
 import type {
   CreateEngagementLetterInput,
@@ -173,6 +173,50 @@ export const engagementLetterService = {
         HTTP_STATUS.BAD_REQUEST,
       )
     }
+
+    // Professional Fees (v1): a fee mode must be chosen, and the detail required by that
+    // mode must be present. The fee data lives in params as structured rows (not simple
+    // declared parameters), so it's validated here rather than in the required-loop.
+    this.validateFees(params)
+  },
+
+  // Validate the Professional Fees block for the chosen fee mode. A trimmed-string
+  // reader treats whitespace-only as empty; rows are read defensively (params is
+  // free-form). Per-mode rules:
+  //  - per_hour       → ≥1 row with an employee type AND rate, plus a total estimated fee.
+  //  - per_service    → ≥1 row, each carrying a fee amount (one per listed service — the
+  //                     frontend supplies a row per selected service).
+  //  - lumpsum_yearly → ≥1 row with a financial year AND an amount.
+  validateFees(params: Record<string, unknown>): void {
+    const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
+    const rows = (v: unknown): Record<string, unknown>[] =>
+      Array.isArray(v) ? v.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') : []
+
+    const feeMode = params.fee_mode
+    if (typeof feeMode !== 'string' || !(FEE_MODES as readonly string[]).includes(feeMode)) {
+      throw new AppError(engagementLetterMessages.INVALID_FEE_MODE, HTTP_STATUS.BAD_REQUEST)
+    }
+
+    if (feeMode === 'per_hour') {
+      const hourly = rows(params.fee_hourly_rows)
+      const hasRow = hourly.some((r) => s(r.employee_type) !== '' && s(r.rate) !== '')
+      if (!hasRow || s(params.fee_total_estimated) === '') {
+        throw new AppError(engagementLetterMessages.FEE_HOURLY_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+      }
+    } else if (feeMode === 'per_service') {
+      const service = rows(params.fee_service_rows)
+      const ok = service.length > 0 && service.every((r) => s(r.amount) !== '')
+      if (!ok) {
+        throw new AppError(engagementLetterMessages.FEE_SERVICE_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+      }
+    } else {
+      // lumpsum_yearly
+      const lumpsum = rows(params.fee_lumpsum_rows)
+      const hasRow = lumpsum.some((r) => s(r.financial_year) !== '' && s(r.amount) !== '')
+      if (!hasRow) {
+        throw new AppError(engagementLetterMessages.FEE_LUMPSUM_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+      }
+    }
   },
 
   // A client's identity row for the addressee (name + company flag + address + email).
@@ -293,10 +337,11 @@ export const engagementLetterService = {
   // Resolve the chosen services → their NAME (active tax-practice only) paired with
   // the user's OPTIONAL description, sorted alphabetically by name, to FREEZE into the
   // letter. At least one valid service is required (invalid/deleted/foreign ids are
-  // dropped; if nothing valid remains, we reject).
+  // dropped; if nothing valid remains, we reject). The service `id` is frozen too, so
+  // per-service fee rows (fee_service_rows[].service_id) can join to it at render time.
   async resolveServicesSnapshot(
     selections: { id: string; description?: string }[] | undefined,
-  ): Promise<{ name: string; description: string }[]> {
+  ): Promise<{ id: string; name: string; description: string }[]> {
     const list = Array.isArray(selections) ? selections : []
     if (list.length === 0) {
       throw new AppError(engagementLetterMessages.SERVICES_REQUIRED, HTTP_STATUS.BAD_REQUEST)
@@ -309,7 +354,7 @@ export const engagementLetterService = {
     const nameById = new Map(result.rows.map((r) => [r.id as string, r.name as string]))
     const resolved = list
       .filter((s) => nameById.has(s.id))
-      .map((s) => ({ name: nameById.get(s.id) as string, description: (s.description ?? '').trim() }))
+      .map((s) => ({ id: s.id, name: nameById.get(s.id) as string, description: (s.description ?? '').trim() }))
       .sort((a, b) => a.name.localeCompare(b.name))
     if (resolved.length === 0) {
       throw new AppError(engagementLetterMessages.SERVICES_REQUIRED, HTTP_STATUS.BAD_REQUEST)
@@ -371,11 +416,19 @@ export const engagementLetterService = {
     // NAMES (active tax-practice), frozen as text so the letter never drifts.
     const addressee = await this.resolveAddresseeSnapshot(clientId, input.relative_id)
     const services = await this.resolveServicesSnapshot(input.services)
-    // The firm's registered legal firm name fills the "<Firm's name>" placeholder
-    // (CDR section). Resolved server-side from firm_id and frozen, so the letter
-    // never drifts if the firm later edits its legal names.
+    // The firm's registered legal names fill the letter's firm placeholders — the legal
+    // firm name in the CDR section, and all three (company / trustee / firm) in the
+    // Costs of Recovery clause. Resolved server-side from firm_id and frozen, so the
+    // letter never drifts if the firm later edits its legal names.
     const firm = await this.firmLegalDetails(firm_id)
-    const params = { ...(input.params ?? {}), ...addressee, services, firm_name: firm.legal_firm_name ?? '' }
+    const params = {
+      ...(input.params ?? {}),
+      ...addressee,
+      services,
+      company_name: firm.legal_company_name ?? '',
+      trust_name: firm.legal_trust_name ?? '',
+      firm_name: firm.legal_firm_name ?? '',
+    }
 
     // The firm's current letter head (header/footer) is pinned to the letter.
     const lh = await db.query(

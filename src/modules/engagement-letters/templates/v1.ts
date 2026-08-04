@@ -17,6 +17,21 @@ import type { EngagementLetterTemplate } from './types'
 // words. Kept here so the service can validate the submitted value against the set.
 export const RESPONSIBILITY_TYPES = ['advice', 'service', 'advice and service'] as const
 
+// How professional fees are charged — a single choice that drives which fee detail is
+// collected (Professional Fees section):
+//  - per_hour        → a list of { employee_type, rate, description } rows + a total
+//                      estimated fee.
+//  - per_service     → an { amount, description } per service listed on the letter,
+//                      referenced by service id (fee_service_rows[].service_id joins to
+//                      the frozen `services` snapshot's id).
+//  - lumpsum_yearly  → a list of { financial_year, amount, description } rows.
+// The fee data is collected + validated (validateParams), frozen into params, and
+// rendered as a table (Particular | Amount (Including GST) | Description) under the
+// Professional Fees section (see renderBody).
+// The per-hour TOTAL estimated fee is collected but NOT shown in that table — it belongs
+// to a later section.
+export const FEE_MODES = ['per_hour', 'per_service', 'lumpsum_yearly'] as const
+
 // Format a stored calendar date ('YYYY-MM-DD') as DD/MM/YYYY from its string parts.
 // No `new Date()` — that would shift the day by the server's timezone; the date is
 // a calendar value the user picked, so we reformat the digits directly.
@@ -211,8 +226,152 @@ export const templateV1: EngagementLetterTemplate = {
     // Fees intro — static template text (more fee content to follow).
     const feesIntro = `<p>All professional fees for the services provided will be based on the time and skill required to complete the tasks, including out of pocket expenses and statutory charges.</p>`
 
-    // Fees lead-in. The "Our" pronoun is fixed. Ends with a colon — more to follow.
+    // Fees lead-in. The "Our" pronoun is fixed. Ends with a colon — the table follows.
     const feesLeadIn = `<p>Our professional fees are (subject to written notification of changes):</p>`
+
+    // Professional Fees table — the collected fee detail for the chosen mode, as a
+    // 3-column table under a fixed header row (Particular | Amount (Including GST) |
+    // Description):
+    //   per_hour       → employee type | $rate per hour | description
+    //   per_service    → service name  | $amount        | description
+    //   lumpsum_yearly → financial year| $amount        | description
+    // Money values are "$"-prefixed. The per-hour TOTAL estimated fee is intentionally
+    // NOT shown here — it belongs to a later section.
+    const feeMode = str(params.fee_mode)
+
+    // A money value → "$250" (strips a leading "$" the user may have typed; '' if blank).
+    const money = (value: unknown): string => {
+      const v = str(value).replace(/^\$/, '').trim()
+      return v ? `$${v}` : ''
+    }
+
+    // Read an array of row objects defensively (params is free-form JSON).
+    const feeRows = (value: unknown): Record<string, unknown>[] =>
+      Array.isArray(value)
+        ? value.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+        : []
+
+    // Build the [col1, col2, col3] cells for the chosen fee mode.
+    let feeCells: [string, string, string][] = []
+    if (feeMode === 'per_hour') {
+      feeCells = feeRows(params.fee_hourly_rows)
+        .filter((r) => str(r.employee_type) !== '' || str(r.rate) !== '')
+        .map((r) => {
+          const rate = money(r.rate)
+          return [str(r.employee_type), rate ? `${rate} per hour` : '', str(r.description)]
+        })
+    } else if (feeMode === 'per_service') {
+      // Join the fee rows (by service_id) to the frozen services snapshot, which carries
+      // the authoritative NAME + order (alphabetical). Every listed service is shown.
+      const feeById = new Map(feeRows(params.fee_service_rows).map((r) => [str(r.service_id), r]))
+      const services = Array.isArray(params.services) ? params.services : []
+      feeCells = services
+        .map((s) => {
+          const rec = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>
+          const name = str(rec.name)
+          if (!name) return null
+          const fee = feeById.get(str(rec.id))
+          return [name, money(fee?.amount), str(fee?.description)] as [string, string, string]
+        })
+        .filter((row): row is [string, string, string] => row !== null)
+    } else if (feeMode === 'lumpsum_yearly') {
+      feeCells = feeRows(params.fee_lumpsum_rows)
+        .filter((r) => str(r.financial_year) !== '' || str(r.amount) !== '')
+        .map((r) => [str(r.financial_year), money(r.amount), str(r.description)])
+    }
+
+    // Fixed header row — the same three columns for every fee mode.
+    const feeHeadings = ['Particular', 'Amount (Including GST)', 'Description']
+    const feesTable = feeCells.length
+      ? `<table style="width:100%;border-collapse:collapse;margin:0 0 13px 0;"><thead><tr>${feeHeadings
+          .map(
+            (h, i) =>
+              `<th style="border:1px solid #333;padding:6px 10px;text-align:left;font-weight:700;${
+                i === 1 ? 'white-space:nowrap;' : ''
+              }">${escapeHtml(h)}</th>`,
+          )
+          .join('')}</tr></thead><tbody>${feeCells
+          .map(
+            (cells) =>
+              `<tr>${cells
+                .map(
+                  (c, i) =>
+                    `<td style="border:1px solid #333;padding:6px 10px;vertical-align:top;${
+                      i === 1 ? 'white-space:nowrap;' : ''
+                    }">${escapeHtml(c)}</td>`,
+                )
+                .join('')}</tr>`,
+          )
+          .join('')}</tbody></table>`
+      : ''
+
+    // Six-minute-block note — only relevant when fees are charged PER HOUR, so it's
+    // shown for that mode only. Static template text.
+    const feesSixMinute =
+      feeMode === 'per_hour'
+        ? `<p>For work undertaken for a period of less than an hour, the rate shall be charged in 6 minute blocks or part thereof.</p>`
+        : ''
+
+    // GST note — static template text, shown for every fee mode.
+    const feesGst = `<p>All professional fees are GST inclusive.</p>`
+
+    // Section heading — bold, static template text.
+    const estimatedHeading = `<p style="font-weight:700;">Estimated Fee</p>`
+
+    // Estimated-fee paragraph. The "<we/I>" placeholder is fixed to "we".
+    const estimatedIntro = `<p>Fees are based on reasonable estimates and the actual cost may vary. It is not always possible to provide an accurate estimate of the total cost, which may change due to unforeseeable problems and delays, the cooperation of third parties and deficiencies in documentation. If costs are likely to be significantly higher than originally estimated, we will provide an additional letter of engagement setting out the reasons for any likely increase.</p>`
+
+    // The estimated fee figure for the closing line. Per-hour uses the user-entered
+    // TOTAL estimated fee; per-service and lumpsum-yearly use the SUM of their amounts.
+    // A money string → number (strips "$", commas, spaces; 0 when unparseable).
+    const toNumber = (value: unknown): number => {
+      const n = parseFloat(str(value).replace(/[$,\s]/g, ''))
+      return Number.isFinite(n) ? n : 0
+    }
+    // A number → "$1,200" (or "$1,200.50" when it has cents).
+    const formatMoney = (n: number): string =>
+      `$${
+        Number.isInteger(n)
+          ? n.toLocaleString('en-AU')
+          : n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      }`
+
+    let estimatedTotal = 0
+    if (feeMode === 'per_hour') {
+      estimatedTotal = toNumber(params.fee_total_estimated)
+    } else if (feeMode === 'per_service') {
+      estimatedTotal = feeRows(params.fee_service_rows).reduce((a, r) => a + toNumber(r.amount), 0)
+    } else if (feeMode === 'lumpsum_yearly') {
+      estimatedTotal = feeRows(params.fee_lumpsum_rows).reduce((a, r) => a + toNumber(r.amount), 0)
+    }
+
+    // Closing line — the "$<XXX>" placeholder is the estimated fee figure. Shown only
+    // when there's a positive figure (kept out for older letters with no fee data).
+    const estimatedAmount =
+      estimatedTotal > 0
+        ? `<p>The estimated fee for the services agreed is ${escapeHtml(
+            formatMoney(estimatedTotal),
+          )}, GST inclusive.</p>`
+        : ''
+
+    // Costs of Recovery clause — plain text (no bold lead-in). The "<Company Name>
+    // <trustee name> <Firm name>" placeholders are the firm's registered legal names,
+    // frozen into params at create time; they appear together (space-joined, empties
+    // dropped) in both sentences.
+    const recoveryNames = [str(params.company_name), str(params.trust_name), str(params.firm_name)]
+      .filter(Boolean)
+      .join(' ')
+    const costsOfRecovery = `<p>Costs of Recovery - The debtor/s shall pay for all costs actually incurred by ${escapeHtml(
+      recoveryNames,
+    )} in the recovery of any monies owed under this Agreement. You agree to be liable for and indemnify ${escapeHtml(
+      recoveryNames,
+    )}. These costs include recovery agent costs, repossession costs, location search costs, process server costs and solicitor costs on a solicitor/client basis, debt collection commission and legal fees on an indemnity basis.</p>`
+
+    // Section heading — bold, static template text.
+    const paymentHeading = `<p style="font-weight:700;">Terms of Payment</p>`
+
+    // Terms of Payment paragraph. Pronouns fixed (our / We / we).
+    const paymentTerms = `<p>Unless other terms have been agreed to, our terms are strictly 14 days from the date of invoice. We will provide an itemised account of professional fees, costs and disbursements upon request. If you do not pay your account by that date, we reserve the right to use a debt collection agency or any other legal means to recover any outstanding fees.</p>`
 
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
@@ -240,6 +399,15 @@ ${engHeading}
 ${engPeriod}
 ${feesHeading}
 ${feesIntro}
-${feesLeadIn}`
+${feesLeadIn}
+${feesTable}
+${feesSixMinute}
+${feesGst}
+${estimatedHeading}
+${estimatedIntro}
+${estimatedAmount}
+${costsOfRecovery}
+${paymentHeading}
+${paymentTerms}`
   },
 }
