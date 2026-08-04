@@ -24,6 +24,11 @@ export interface Firm {
   id: string
   department: DepartmentCode
   name: string
+  // Registered legal names (required for tax-practice firms). Null for firms that
+  // predate this field, or for mortgage firms that leave them blank.
+  legal_company_name: string | null
+  legal_trust_name: string | null
+  legal_firm_name: string | null
   description: string | null
   address: string | null
   email: string | null
@@ -42,6 +47,9 @@ export interface FirmListItem extends Firm {
 export interface CreateFirmRequest {
   department: DepartmentCode
   name: string
+  legal_company_name?: string | null
+  legal_trust_name?: string | null
+  legal_firm_name?: string | null
   description?: string | null
   address?: string | null
   email?: string | null
@@ -53,6 +61,9 @@ export interface CreateFirmRequest {
 // Department is immutable after creation, so it isn't updatable here.
 export interface UpdateFirmRequest {
   name?: string
+  legal_company_name?: string | null
+  legal_trust_name?: string | null
+  legal_firm_name?: string | null
   description?: string | null
   address?: string | null
   email?: string | null

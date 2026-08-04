@@ -28,7 +28,9 @@ function normalizeConcernPersons(list: ConcernPersonInput[]): ConcernPerson[] {
   }))
 }
 
-const SELECT_COLUMNS = `id, department, name, description, address, email,
+const SELECT_COLUMNS = `id, department, name,
+                        legal_company_name, legal_trust_name, legal_firm_name,
+                        description, address, email,
                         contact_no, concern_persons, is_active,
                         created_at, updated_at`
 
@@ -88,7 +90,9 @@ export const firmService = {
     }
 
     const result = await db.query(
-      `SELECT f.id, f.department, f.name, f.description, f.address, f.email,
+      `SELECT f.id, f.department, f.name,
+              f.legal_company_name, f.legal_trust_name, f.legal_firm_name,
+              f.description, f.address, f.email,
               f.contact_no, f.concern_persons, f.is_active,
               f.created_at, f.updated_at,
               COUNT(m.id) FILTER (WHERE m.is_deleted = FALSE)::int AS member_count
@@ -141,8 +145,9 @@ export const firmService = {
     const result = await db.query(
       `INSERT INTO firms (
          department, name, description, address, email, contact_no,
-         concern_persons, is_active
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+         concern_persons, is_active,
+         legal_company_name, legal_trust_name, legal_firm_name
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
        RETURNING id`,
       [
         data.department,
@@ -153,6 +158,9 @@ export const firmService = {
         data.contact_no ?? null,
         JSON.stringify(normalizeConcernPersons(data.concern_persons)),
         data.is_active,
+        data.legal_company_name ?? null,
+        data.legal_trust_name ?? null,
+        data.legal_firm_name ?? null,
       ],
     )
 
@@ -184,6 +192,9 @@ export const firmService = {
     }
 
     if (data.name !== undefined) setField('name', data.name)
+    if (data.legal_company_name !== undefined) setField('legal_company_name', data.legal_company_name ?? null)
+    if (data.legal_trust_name !== undefined) setField('legal_trust_name', data.legal_trust_name ?? null)
+    if (data.legal_firm_name !== undefined) setField('legal_firm_name', data.legal_firm_name ?? null)
     if (data.description !== undefined) setField('description', data.description ?? null)
     if (data.address !== undefined) setField('address', data.address ?? null)
     if (data.email !== undefined) setField('email', data.email ?? null)

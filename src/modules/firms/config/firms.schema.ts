@@ -30,19 +30,44 @@ const concernPersonSchema = z.object({
   asic_agent_id: optionalText(80),
 })
 
-export const createFirmSchema = z.object({
-  department: departmentEnum,
-  name: z.string().trim().min(1, firmMessages.NAME_REQUIRED).max(160),
-  description: optionalText(1000),
-  address: optionalText(500),
-  email: optionalEmail,
-  contact_no: optionalText(25),
-  concern_persons: z.array(concernPersonSchema).default([]),
-  is_active: z.boolean().default(true),
-})
+// Legal details (registered names). Stored nullable; REQUIRED at the app layer for
+// tax-practice firms only (enforced by the superRefine below on create). The legal
+// firm name later fills the engagement letter's "<Firm's name>" placeholder.
+const LEGAL_REQUIRED: [key: 'legal_company_name' | 'legal_trust_name' | 'legal_firm_name', message: string][] = [
+  ['legal_company_name', firmMessages.LEGAL_COMPANY_NAME_REQUIRED],
+  ['legal_trust_name', firmMessages.LEGAL_TRUST_NAME_REQUIRED],
+  ['legal_firm_name', firmMessages.LEGAL_FIRM_NAME_REQUIRED],
+]
+
+export const createFirmSchema = z
+  .object({
+    department: departmentEnum,
+    name: z.string().trim().min(1, firmMessages.NAME_REQUIRED).max(160),
+    legal_company_name: optionalText(160),
+    legal_trust_name: optionalText(160),
+    legal_firm_name: optionalText(160),
+    description: optionalText(1000),
+    address: optionalText(500),
+    email: optionalEmail,
+    contact_no: optionalText(25),
+    concern_persons: z.array(concernPersonSchema).default([]),
+    is_active: z.boolean().default(true),
+  })
+  .superRefine((data, ctx) => {
+    // Legal names are compulsory for tax-practice firms; optional for mortgage.
+    if (data.department !== 'tax_practice') return
+    for (const [key, message] of LEGAL_REQUIRED) {
+      if (!data[key]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message })
+    }
+  })
 
 export const updateFirmSchema = z.object({
   name: z.string().trim().min(1, firmMessages.NAME_REQUIRED).max(160).optional(),
+  // Department is immutable, so we can't tell tax vs mortgage here — the "required
+  // for tax firms" rule is enforced on the frontend; the drawer always sends these.
+  legal_company_name: optionalText(160),
+  legal_trust_name: optionalText(160),
+  legal_firm_name: optionalText(160),
   description: optionalText(1000),
   address: optionalText(500),
   email: optionalEmail,

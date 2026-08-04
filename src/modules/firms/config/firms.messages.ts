@@ -8,6 +8,10 @@ export const firmMessages = {
   NAME_REQUIRED: 'Firm name is required',
   NAME_EXISTS: 'A firm with this name already exists in this department',
   INVALID_DEPARTMENT: 'Invalid department',
+  // Legal details — required for tax-practice firms.
+  LEGAL_COMPANY_NAME_REQUIRED: 'Legal company name is required',
+  LEGAL_TRUST_NAME_REQUIRED: 'Legal trust name is required',
+  LEGAL_FIRM_NAME_REQUIRED: 'Legal firm name is required',
   // Letter head
   LETTERHEAD_ONLY_TAX: 'Letter heads are only available for tax practice firms',
   LETTERHEAD_VERSIONS_FETCHED: 'Letter head versions fetched successfully',
