@@ -4,6 +4,7 @@ import { HTTP_STATUS } from '../../../config/constants'
 import type { AuthUser } from '../../../middleware/auth.middleware'
 import { engagementLetterMessages } from '../config/engagement-letters.messages'
 import { getTemplate, LATEST_VERSION } from '../templates'
+import { RESPONSIBILITY_TYPES } from '../templates/v1'
 import { generateEngagementLetterPdf } from './engagement-letter-pdf.service'
 import type {
   CreateEngagementLetterInput,
@@ -20,6 +21,7 @@ import type {
   EngagementLetterAddresseePerson,
   EngagementLetterServices,
   EngagementLetterServiceOption,
+  EngagementLetterFirmLegal,
 } from '../types/engagement-letters.types'
 
 // SQL fragment: a member's display name.
@@ -115,7 +117,13 @@ export const engagementLetterService = {
     const { parameters } = getTemplate(version)
     for (const def of parameters) {
       const value = params[def.key]
-      const missing = value === undefined || value === null || value === ''
+      // A whitespace-only string counts as missing (a required free-text field must
+      // have real content, not just spaces).
+      const missing =
+        value === undefined ||
+        value === null ||
+        value === '' ||
+        (typeof value === 'string' && value.trim() === '')
       if (def.required && missing) {
         throw new AppError(engagementLetterMessages.MISSING_REQUIRED_FIELD, HTTP_STATUS.BAD_REQUEST)
       }
@@ -137,6 +145,31 @@ export const engagementLetterService = {
     ) {
       throw new AppError(
         engagementLetterMessages.DISCUSSION_DATE_AFTER_LETTER,
+        HTTP_STATUS.BAD_REQUEST,
+      )
+    }
+
+    // Cross-field (v1): the engagement period must not end before it starts. Both are
+    // YYYY-MM-DD strings, so a plain string comparison is chronological.
+    const engStart = params.engagement_start
+    const engEnd = params.engagement_end
+    if (typeof engStart === 'string' && typeof engEnd === 'string' && engEnd < engStart) {
+      throw new AppError(
+        engagementLetterMessages.ENGAGEMENT_END_BEFORE_START,
+        HTTP_STATUS.BAD_REQUEST,
+      )
+    }
+
+    // Cross-field (v1): the "advice and/or service" choice must be one of the allowed
+    // options (the value is dropped straight into the letter, so guard the input).
+    const respType = params.responsibility_type
+    if (
+      typeof respType === 'string' &&
+      respType !== '' &&
+      !(RESPONSIBILITY_TYPES as readonly string[]).includes(respType)
+    ) {
+      throw new AppError(
+        engagementLetterMessages.INVALID_RESPONSIBILITY_TYPE,
         HTTP_STATUS.BAD_REQUEST,
       )
     }
@@ -284,6 +317,23 @@ export const engagementLetterService = {
     return resolved
   },
 
+  // The firm's registered legal names — shown (read-only) on the create screen and
+  // later frozen into the letter. A field may be null for firms created before the
+  // legal-details fields existed.
+  async firmLegalDetails(firmId: string): Promise<EngagementLetterFirmLegal> {
+    const result = await db.query(
+      `SELECT legal_company_name, legal_trust_name, legal_firm_name
+       FROM firms WHERE id = $1`,
+      [firmId],
+    )
+    const row = result.rows[0]
+    return {
+      legal_company_name: row?.legal_company_name ?? null,
+      legal_trust_name: row?.legal_trust_name ?? null,
+      legal_firm_name: row?.legal_firm_name ?? null,
+    }
+  },
+
   // ── CREATE-CONTEXT — what the create screen needs before showing the form ──
   // Whether the client's firm has a letter head (else the UI shows "not configured
   // yet — create the letter head first"), the active template's version + parameter
@@ -298,7 +348,8 @@ export const engagementLetterService = {
     )
     const addressee = await this.buildAddressee(clientId)
     const services = await this.buildServices(clientId)
-    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee, services }
+    const firm = await this.firmLegalDetails(firm_id)
+    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee, services, firm }
   },
 
   // ── CREATE — a new letter for a client ──
@@ -320,7 +371,11 @@ export const engagementLetterService = {
     // NAMES (active tax-practice), frozen as text so the letter never drifts.
     const addressee = await this.resolveAddresseeSnapshot(clientId, input.relative_id)
     const services = await this.resolveServicesSnapshot(input.services)
-    const params = { ...(input.params ?? {}), ...addressee, services }
+    // The firm's registered legal firm name fills the "<Firm's name>" placeholder
+    // (CDR section). Resolved server-side from firm_id and frozen, so the letter
+    // never drifts if the firm later edits its legal names.
+    const firm = await this.firmLegalDetails(firm_id)
+    const params = { ...(input.params ?? {}), ...addressee, services, firm_name: firm.legal_firm_name ?? '' }
 
     // The firm's current letter head (header/footer) is pinned to the letter.
     const lh = await db.query(

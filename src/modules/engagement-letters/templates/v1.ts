@@ -12,6 +12,11 @@
 import { escapeHtml } from '../helpers/engagement-letter-html.helper'
 import type { EngagementLetterTemplate } from './types'
 
+// The allowed values for the "advice and/or service" choice in Your Responsibilities.
+// The chosen value is dropped straight into the sentence, so these ARE the display
+// words. Kept here so the service can validate the submitted value against the set.
+export const RESPONSIBILITY_TYPES = ['advice', 'service', 'advice and service'] as const
+
 // Format a stored calendar date ('YYYY-MM-DD') as DD/MM/YYYY from its string parts.
 // No `new Date()` — that would shift the day by the server's timezone; the date is
 // a calendar value the user picked, so we reformat the digits directly.
@@ -52,6 +57,19 @@ export const templateV1: EngagementLetterTemplate = {
   parameters: [
     { key: 'letter_date', label: 'Date', type: 'date', required: true },
     { key: 'discussion_date', label: 'Discussion date', type: 'date', required: true },
+    // Engagement Period — the period start and end dates.
+    { key: 'engagement_start', label: 'Engagement period start date', type: 'date', required: true },
+    { key: 'engagement_end', label: 'Engagement period end date', type: 'date', required: true },
+    // Your Responsibilities: the "advice and/or service" choice, and the free-text
+    // description of further information/actions required from the client.
+    { key: 'responsibility_type', label: 'Advice and/or service', type: 'choice', required: true },
+    {
+      key: 'further_info',
+      label:
+        'Describe any further information or actions you require the client to provide or do to enable the timely provision of the engaged services',
+      type: 'multiline',
+      required: true,
+    },
   ],
 
   renderBody(params) {
@@ -148,6 +166,54 @@ export const templateV1: EngagementLetterTemplate = {
     // Offence notice — static template text.
     const amlOffence = `<p>Importantly, it is an offence under the AML/CTF Act to seek a designated service under a false name or anonymity, or to provide false or misleading information or documents as part of receiving a designated service.</p>`
 
+    // Section heading — bold, static template text.
+    const cdrHeading = `<p style="font-weight:700;">Use of Consumer Data Right Data</p>`
+
+    // CDR paragraph. Pronouns fixed to the "we"/"us" forms. The "<Firm's name>"
+    // placeholder is the firm's registered legal firm name, frozen into params at
+    // create time (params.firm_name) from the firm master data.
+    const firmName = str(params.firm_name)
+    const cdr = `<p>We acknowledge that you may consent for an Accredited Data Recipient under the Consumer Data Right (CDR) to disclose your CDR data to us. We confirm that for this purpose you may nominate ${escapeHtml(firmName)} as your Trusted Adviser and that as your trusted adviser, we will only access the data necessary to provide the services in this engagement letter.</p>`
+
+    // Section heading — bold, static template text.
+    const respHeading = `<p style="font-weight:700;">Your Responsibilities</p>`
+
+    // Responsibilities paragraph. The "us" pronoun is fixed; the "<advice and/or
+    // service>" placeholder is the user's chosen responsibility type (one of
+    // RESPONSIBILITY_TYPES), dropped straight into the sentence.
+    const respType = str(params.responsibility_type)
+    const respIntro = respType
+      ? `<p>You acknowledge that you are responsible for ensuring that any information you provide for the engagement is accurate, complete and current, and you will promptly notify us of any changes, as this may affect the ${escapeHtml(respType)} provided.</p>`
+      : ''
+
+    // Free-text: further information/actions required from the client (user-entered,
+    // required). Its own paragraph; user line breaks are preserved.
+    const furtherInfo = str(params.further_info)
+    const respFurther = furtherInfo
+      ? `<p>${escapeHtml(furtherInfo).replace(/\n/g, '<br/>')}</p>`
+      : ''
+
+    // Section heading — bold, static template text.
+    const engHeading = `<p style="font-weight:700;">Engagement Period</p>`
+
+    // Engagement period sentence — the two "<date>" placeholders are the period start
+    // and end dates. Rendered only when both are present.
+    const engStart = formatLetterDate(params.engagement_start)
+    const engEnd = formatLetterDate(params.engagement_end)
+    const engPeriod =
+      engStart && engEnd
+        ? `<p>The engagement period commences on ${escapeHtml(engStart)} and will continue until ${escapeHtml(engEnd)}.</p>`
+        : ''
+
+    // Section heading — bold, static template text.
+    const feesHeading = `<p style="font-weight:700;">Professional Fees and Payments</p>`
+
+    // Fees intro — static template text (more fee content to follow).
+    const feesIntro = `<p>All professional fees for the services provided will be based on the time and skill required to complete the tasks, including out of pocket expenses and statutory charges.</p>`
+
+    // Fees lead-in. The "Our" pronoun is fixed. Ends with a colon — more to follow.
+    const feesLeadIn = `<p>Our professional fees are (subject to written notification of changes):</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -164,6 +230,16 @@ ${amlHeading}
 ${amlIntro}
 ${amlList}
 ${amlClose}
-${amlOffence}`
+${amlOffence}
+${cdrHeading}
+${cdr}
+${respHeading}
+${respIntro}
+${respFurther}
+${engHeading}
+${engPeriod}
+${feesHeading}
+${feesIntro}
+${feesLeadIn}`
   },
 }

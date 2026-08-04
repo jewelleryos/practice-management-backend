@@ -16,6 +16,10 @@ export const engagementLetterMessages = {
   INVALID_DATE: 'Please choose a valid date',
   // The discussion date sits after the letter date (it must be on or before it).
   DISCUSSION_DATE_AFTER_LETTER: 'The discussion date must be on or before the letter date',
+  // The "advice and/or service" choice was not one of the allowed options.
+  INVALID_RESPONSIBILITY_TYPE: 'Please choose advice, service, or advice and service',
+  // The engagement period ends before it starts.
+  ENGAGEMENT_END_BEFORE_START: 'The engagement period end date must be on or after the start date',
 
   // Addressee (who the letter is written to).
   // A company client was submitted without choosing which related person to address.

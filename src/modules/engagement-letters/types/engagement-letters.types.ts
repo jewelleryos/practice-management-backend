@@ -90,13 +90,24 @@ export interface EngagementLetterServices {
   default_ids: string[]
 }
 
+// The client's firm registered legal names — shown (read-only) on the create screen
+// and later frozen into the letter for the "<Firm's name>" placeholder. Required for
+// tax-practice firms, but a field may be null for firms created before this was added.
+export interface EngagementLetterFirmLegal {
+  legal_company_name: string | null
+  legal_trust_name: string | null
+  legal_firm_name: string | null
+}
+
 // firm has a letter head (else "not configured yet"), the active template's
 // version + parameter defs (so the frontend picks the matching fields component),
-// the addressee block (client name / address / email + relation choices), and the
-// services block (all services + the client's current ones pre-checked).
+// the addressee block (client name / address / email + relation choices), the
+// services block (all services + the client's current ones pre-checked), and the
+// firm's legal names (displayed on the form).
 export interface EngagementLetterCreateContext {
   has_letterhead: boolean
   template: EngagementLetterTemplateInfo
   addressee: EngagementLetterAddressee
   services: EngagementLetterServices
+  firm: EngagementLetterFirmLegal
 }
