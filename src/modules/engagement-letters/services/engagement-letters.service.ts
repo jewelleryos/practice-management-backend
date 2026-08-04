@@ -367,7 +367,7 @@ export const engagementLetterService = {
   // legal-details fields existed.
   async firmLegalDetails(firmId: string): Promise<EngagementLetterFirmLegal> {
     const result = await db.query(
-      `SELECT legal_company_name, legal_trust_name, legal_firm_name
+      `SELECT legal_company_name, legal_trust_name, legal_firm_name, email, contact_no
        FROM firms WHERE id = $1`,
       [firmId],
     )
@@ -376,6 +376,8 @@ export const engagementLetterService = {
       legal_company_name: row?.legal_company_name ?? null,
       legal_trust_name: row?.legal_trust_name ?? null,
       legal_firm_name: row?.legal_firm_name ?? null,
+      email: row?.email ?? null,
+      contact_no: row?.contact_no ?? null,
     }
   },
 
@@ -421,6 +423,11 @@ export const engagementLetterService = {
     // Costs of Recovery clause. Resolved server-side from firm_id and frozen, so the
     // letter never drifts if the firm later edits its legal names.
     const firm = await this.firmLegalDetails(firm_id)
+    // The firm's contact number and email are printed in the Privacy section — both are
+    // mandatory. Refuse to generate until the firm has them (mirrors the letterhead gate).
+    if (!firm.email || !firm.contact_no) {
+      throw new AppError(engagementLetterMessages.FIRM_CONTACT_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
     const params = {
       ...(input.params ?? {}),
       ...addressee,
@@ -428,6 +435,8 @@ export const engagementLetterService = {
       company_name: firm.legal_company_name ?? '',
       trust_name: firm.legal_trust_name ?? '',
       firm_name: firm.legal_firm_name ?? '',
+      firm_email: firm.email,
+      firm_contact_no: firm.contact_no,
     }
 
     // The firm's current letter head (header/footer) is pinned to the letter.

@@ -97,6 +97,10 @@ export interface EngagementLetterFirmLegal {
   legal_company_name: string | null
   legal_trust_name: string | null
   legal_firm_name: string | null
+  // Firm contact details — shown (read-only) on the create screen and frozen into the
+  // letter (the Privacy section references them). Both are required to generate a letter.
+  email: string | null
+  contact_no: string | null
 }
 
 // firm has a letter head (else "not configured yet"), the active template's

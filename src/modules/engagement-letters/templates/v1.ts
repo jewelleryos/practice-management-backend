@@ -373,6 +373,40 @@ export const templateV1: EngagementLetterTemplate = {
     // Terms of Payment paragraph. Pronouns fixed (our / We / we).
     const paymentTerms = `<p>Unless other terms have been agreed to, our terms are strictly 14 days from the date of invoice. We will provide an itemised account of professional fees, costs and disbursements upon request. If you do not pay your account by that date, we reserve the right to use a debt collection agency or any other legal means to recover any outstanding fees.</p>`
 
+    // Ownership of Documents — bold heading + static paragraph. Pronouns fixed
+    // (we are / us / us / our / we).
+    const ownershipHeading = `<p style="font-weight:700;">Ownership of Documents</p>`
+    const ownership = `<p>The final documents which we are specifically engaged to prepare, together with any other original documents given to us, shall remain your property. Documents brought into existence by us, remain our property at all times. However, we will provide you with copies of any documents you require from time to time.</p>`
+
+    // Lien over Documents — bold heading + static paragraph. Pronouns fixed (we / our).
+    const lienHeading = `<p style="font-weight:700;">Lien over Documents</p>`
+    const lien = `<p>If permitted by law, we may exercise a lien over all materials or records in our possession to all engagements for you until outstanding fees and disbursements are paid in full.</p>`
+
+    // Quality Review — bold heading + static paragraph. Pronouns fixed (we are).
+    const qualityHeading = `<p style="font-weight:700;">Quality Review</p>`
+    const quality = `<p>As a member of the Institute of Public Accountants (IPA), we are subject to the IPA's Quality Review Program (QRP) mandated by the International Federation of Accountants (IFAC). QRP reviews assess member compliance with the professional and ethical standards and by accepting our engagement you acknowledge that, if requested by IPA, our files relating to this engagement may be made available for QRP review. Unless otherwise advised, you are consenting to your files being part of a QRP review.</p>`
+
+    // Professional Standards Scheme — bold heading + static paragraph. Pronouns fixed
+    // (we are / our); ends with a link to the Professional Standards Councils site.
+    const standardsHeading = `<p style="font-weight:700;">Professional Standards Scheme</p>`
+    const standards = `<p>As a member of the IPA, we are part of the IPA Professional Standards Scheme and our liability is limited by a Scheme approved under Professional Standards Legislation. For more information on the IPA Professional Standards Scheme or Professional Standards Schemes generally, please refer to: <a href="https://www.psc.gov.au">www.psc.gov.au</a></p>`
+
+    // Privacy — bold heading + paragraphs. Pronouns fixed (We / we / our). Mostly static;
+    // the last paragraph prints the firm's contact number + email (frozen into params).
+    // Partial for now: more paragraphs to be added later. "Privacy Act 1988" is italic.
+    const privacyHeading = `<p style="font-weight:700;">Privacy</p>`
+    const privacy = `<p>We understand the importance of protecting the privacy of your personal information. In handling personal information, we comply with the <em>Privacy Act 1988</em> (Cth) (Privacy Act), as amended from time to time, and with the 13 Australian Privacy Principles in the Privacy Act and other applicable privacy-related legislation.</p>
+<p>We collect, use, disclose and store your personal information in accordance with our privacy policy, a copy of which can be found on our website or otherwise made available to you upon request.</p>
+<p>We may collect your personal information directly from you or your authorised representatives, from third parties where you have provided your consent, or where the collection of your personal information is permitted by law.</p>
+<p>The types of personal information we collect includes identification information such as names, occupation, and date of birth, contact details such as address, email address, and mobile phone number, government-issued identification numbers such as tax file numbers, financial information, and information regarding your superannuation and/or insurance arrangements.</p>
+<p>Generally, we collect, use and disclose your personal information for the purposes of providing you with services, as well as to comply with our legal, regulatory or professional obligations (including, if relevant, the AML/CTF Legislation).</p>
+<p>If you do not provide your personal information to us, this may affect our ability to assist you.</p>
+<p>We may also use your personal information for the purpose of providing marketing information to you. Please let us know if you do not want this information to be sent to you.</p>
+<p>To provide our services, we may disclose your information to third parties engaged to perform CDD including identification checks, administrative or other business management services. We may also disclose your personal information to third parties engaged to undertake specific processes, functions or activities and/or provide services for us.</p>
+<p>Subject to our legal, regulatory and professional obligations, any disclosure is always on a confidential basis. We may disclose your personal information if required or authorised by law, including as relevant the AML/CTF Legislation.</p>
+<p>We may disclose personal information to overseas recipients in order to provide necessary services and for administrative or other business management purposes. Before disclosing any personal information to an overseas recipient, we take steps reasonable in the circumstances to ensure the overseas recipient complies with the Australian Privacy Principles or is bound by a substantially similar privacy scheme unless you consent to the overseas disclosure or it is otherwise required or permitted by law.</p>
+<p>If you would like to access, or seek correction of, the personal information we collect and hold about you, or otherwise enquire or complain about our approach to privacy, please contact our privacy compliance officer on ${escapeHtml(str(params.firm_contact_no))} or at ${escapeHtml(str(params.firm_email))}. Our privacy policy contains further information about these processes.</p>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -408,6 +442,16 @@ ${estimatedIntro}
 ${estimatedAmount}
 ${costsOfRecovery}
 ${paymentHeading}
-${paymentTerms}`
+${paymentTerms}
+${ownershipHeading}
+${ownership}
+${lienHeading}
+${lien}
+${qualityHeading}
+${quality}
+${standardsHeading}
+${standards}
+${privacyHeading}
+${privacy}`
   },
 }

@@ -35,6 +35,8 @@ export const engagementLetterMessages = {
   INVALID_RELATIVE: 'The selected person is not a relation of this client',
   // No (valid) service was chosen — the letter must list at least one.
   SERVICES_REQUIRED: 'Please select at least one service',
+  // The firm has no contact number and/or email — both are printed in the letter.
+  FIRM_CONTACT_REQUIRED: "Add the firm's contact number and email before generating the letter",
 
   NOTES_FETCHED: 'Notes fetched successfully',
   NOTE_ADDED: 'Note added successfully',
