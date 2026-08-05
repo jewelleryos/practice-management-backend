@@ -463,7 +463,7 @@ ${clientSigBox}
         const relation = escapeHtml(str((a as { relation?: unknown })?.relation))
         const personLabel = title ? `${escapeHtml(title)} ${name}` : name
         return `<div style="break-inside:avoid;page-break-inside:avoid;margin-top:24px;">
-<p>I ${personLabel}, as ${relation} of ${ackEntity}, hereby acknowledge and accept the terms of this engagement provided to us. We also undertake that we have the capacity to make this engagement (if on behalf of an entity).</p>
+<p>I ${personLabel}, as ${relation} of ${ackEntity}, hereby acknowledge and accept the terms of this engagement provided to me. I also undertake that I have the capacity to make this engagement (if on behalf of an entity).</p>
 <p style="margin:0;">I also agree that I shall be personally liable for all fees for services performed in accordance with these terms of engagement.</p>
 <div style="height:72px;"></div>
 <p style="margin:0;font-weight:700;">${name}</p>
