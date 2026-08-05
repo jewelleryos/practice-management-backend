@@ -18,6 +18,16 @@ import { taxTaskService } from '../../tax-tasks/services/tax-tasks.service'
 import { listTaxTasksQuerySchema } from '../../tax-tasks/config/tax-tasks.schema'
 import { taxTaskMessages } from '../../tax-tasks/config/tax-tasks.messages'
 import type { TaxTaskListResponse } from '../../tax-tasks/types/tax-tasks.types'
+// A client's engagement letters are listed/created here (nested under the client);
+// per-letter operations + notes live in the engagement-letters module.
+import { engagementLetterService } from '../../engagement-letters/services/engagement-letters.service'
+import { createEngagementLetterSchema } from '../../engagement-letters/config/engagement-letters.schema'
+import { engagementLetterMessages } from '../../engagement-letters/config/engagement-letters.messages'
+import type {
+  EngagementLetterListResponse,
+  EngagementLetterDetail,
+  EngagementLetterCreateContext,
+} from '../../engagement-letters/types/engagement-letters.types'
 
 // Tax Practice clients. Visibility is firm-scoped in the service: a member only
 // sees / can act on clients belonging to firms they have access to. There is NO
@@ -84,6 +94,46 @@ taxClientRoutes.get('/:clientId/tax-tasks', authWithPermission(), async (c) => {
     })
     const result = await taxTaskService.list(c.get('user'), query)
     return successResponse<TaxTaskListResponse>(c, taxTaskMessages.LIST_FETCHED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// ── Engagement letters (nested under a client) ──
+// Gated by the single TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS permission (firm-scoping
+// enforced in the service). Two path segments, so no clash with GET/PUT /:id.
+
+// GET /api/tax-clients/:clientId/engagement-letters/preflight — what the create
+// screen needs before showing the form (firm has a letter head? + template defs).
+taxClientRoutes.get(
+  '/:clientId/engagement-letters/preflight',
+  authWithPermission(PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS),
+  async (c) => {
+    try {
+      const result = await engagementLetterService.createContext(c.get('user'), c.req.param('clientId')!)
+      return successResponse<EngagementLetterCreateContext>(c, engagementLetterMessages.PREFLIGHT_FETCHED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// GET /api/tax-clients/:clientId/engagement-letters — a client's letters (newest first)
+taxClientRoutes.get('/:clientId/engagement-letters', authWithPermission(PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS), async (c) => {
+  try {
+    const result = await engagementLetterService.list(c.get('user'), c.req.param('clientId')!)
+    return successResponse<EngagementLetterListResponse>(c, engagementLetterMessages.LIST_FETCHED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// POST /api/tax-clients/:clientId/engagement-letters — create a letter for the client
+taxClientRoutes.post('/:clientId/engagement-letters', authWithPermission(PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS), async (c) => {
+  try {
+    const data = createEngagementLetterSchema.parse(await c.req.json())
+    const result = await engagementLetterService.create(c.get('user'), c.req.param('clientId')!, data)
+    return successResponse<EngagementLetterDetail>(c, engagementLetterMessages.CREATED, result, 201)
   } catch (error) {
     return errorHandler(error, c)
   }

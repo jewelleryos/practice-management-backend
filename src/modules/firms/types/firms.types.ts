@@ -2,16 +2,23 @@ import type { DepartmentCode } from '../../../config/departments.constants'
 
 // A concern person attached to a firm (agent/contact with regulatory ids).
 // Stored/returned shape — optional fields are normalized to explicit null.
+// `id` is a stable ULID (the signatures table maps to it); `signature_uploaded`
+// is a denormalized flag so callers can tell who has a signature without a join.
 export interface ConcernPerson {
+  id: string
   name: string
   designation: string | null
   membership_number: string | null
   tax_agent_number: string | null
   asic_agent_id: string | null
+  signature_uploaded: boolean
 }
 
-// Input shape (from the validated request) — optional fields may be absent.
+// Input shape (from the validated request) — optional fields may be absent. `id`
+// is echoed back for EXISTING persons so edits preserve it; new persons omit it.
+// `signature_uploaded` is server-managed and never accepted from the client.
 export interface ConcernPersonInput {
+  id?: string
   name: string
   designation?: string | null
   membership_number?: string | null
@@ -19,11 +26,21 @@ export interface ConcernPersonInput {
   asic_agent_id?: string | null
 }
 
+// Payload to upload/replace a concern person's signature (base64 data URI).
+export interface UploadSignatureRequest {
+  image_base64: string
+}
+
 // A firm — master data. Belongs to exactly one department (fixed at creation).
 export interface Firm {
   id: string
   department: DepartmentCode
   name: string
+  // Registered legal names (required for tax-practice firms). Null for firms that
+  // predate this field, or for mortgage firms that leave them blank.
+  legal_company_name: string | null
+  legal_trust_name: string | null
+  legal_firm_name: string | null
   description: string | null
   address: string | null
   email: string | null
@@ -42,6 +59,9 @@ export interface FirmListItem extends Firm {
 export interface CreateFirmRequest {
   department: DepartmentCode
   name: string
+  legal_company_name?: string | null
+  legal_trust_name?: string | null
+  legal_firm_name?: string | null
   description?: string | null
   address?: string | null
   email?: string | null
@@ -53,6 +73,9 @@ export interface CreateFirmRequest {
 // Department is immutable after creation, so it isn't updatable here.
 export interface UpdateFirmRequest {
   name?: string
+  legal_company_name?: string | null
+  legal_trust_name?: string | null
+  legal_firm_name?: string | null
   description?: string | null
   address?: string | null
   email?: string | null
