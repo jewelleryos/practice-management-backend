@@ -128,6 +128,9 @@ export interface TaxClientListItem {
   assignee_id: string | null
   assignee_name: string | null
   created_at: string
+  // Whether this client has at least one engagement letter. The list shows a
+  // "pending" dot when this is false.
+  engagement_letter_exists: boolean
 }
 
 export interface TaxClientListResponse {
@@ -205,4 +208,7 @@ export interface TaxClientDetail {
   relationships: RelationshipView[]
   services: ServiceView[]
   notes: NoteView[]
+  // Non-completed tasks for this client, scoped to what the viewer may see
+  // (VIEW_ALL → all; VIEW_ASSIGNED only → tasks they prepare/review; neither → 0).
+  pending_task_count: number
 }

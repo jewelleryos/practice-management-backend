@@ -86,7 +86,11 @@ export const taxClientService = {
               c.client_group_id, cg.name AS client_group_name,
               c.software_id, sw.name AS software_name,
               c.assignee_id,
-              CASE WHEN a.id IS NULL THEN NULL ELSE a.first_name || ' ' || a.last_name END AS assignee_name
+              CASE WHEN a.id IS NULL THEN NULL ELSE a.first_name || ' ' || a.last_name END AS assignee_name,
+              EXISTS (
+                SELECT 1 FROM engagement_letters el
+                WHERE el.client_id = c.id AND el.is_deleted = FALSE
+              ) AS engagement_letter_exists
        FROM tax_clients c
        LEFT JOIN firms f ON f.id = c.firm_id
        LEFT JOIN entity_types et ON et.id = c.entity_type_id
@@ -145,13 +149,38 @@ export const taxClientService = {
       PERMISSIONS.TAX_CLIENT.VIEW_SENSITIVE_NOTES,
     )
 
-    const [relationships, services, notes] = await Promise.all([
+    const [relationships, services, notes, pending_task_count] = await Promise.all([
       this.relationshipsFor(id),
       this.servicesFor(id),
       this.notesFor(id, canSeeSensitive),
+      this.pendingTaskCountFor(id, actingUser),
     ])
 
-    return { ...row, relationships, services, notes }
+    return { ...row, relationships, services, notes, pending_task_count }
+  },
+
+  // Count of this client's non-completed tasks (both general + service), scoped to
+  // what the viewer may see — mirrors the task list's permission scoping so the tab
+  // badge matches the tab's contents. VIEW_ALL → every task; VIEW_ASSIGNED only →
+  // tasks the caller prepares or reviews; neither (create-only / none) → 0. The
+  // client's firm is already validated as accessible by the caller in getById.
+  async pendingTaskCountFor(clientId: string, actingUser: AuthUser): Promise<number> {
+    const canViewAll = actingUser.permissions.includes(PERMISSIONS.TAX_TASK.VIEW_ALL)
+    const canViewAssigned = actingUser.permissions.includes(PERMISSIONS.TAX_TASK.VIEW_ASSIGNED)
+    if (!canViewAll && !canViewAssigned) return 0
+
+    const params: unknown[] = [clientId]
+    let assignedFilter = ''
+    if (!canViewAll) {
+      params.push(actingUser.id)
+      assignedFilter = ` AND (preparer_id = $2 OR reviewer_id = $2)`
+    }
+    const result = await db.query(
+      `SELECT COUNT(*)::int AS count FROM tax_tasks
+       WHERE client_id = $1 AND is_deleted = FALSE AND status <> 'completed'${assignedFilter}`,
+      params,
+    )
+    return result.rows[0]?.count ?? 0
   },
 
   // Existing clients within the member's accessible firms — options for the
