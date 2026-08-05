@@ -416,6 +416,39 @@ export const templateV1: EngagementLetterTemplate = {
 <p>Please contact us if you have any queries about this engagement. Please sign and return the confirmation of acceptance of this engagement.</p>
 <p>We thank you for the opportunity to provide professional accounting services to both yourself and your business.</p>`
 
+    // ── Signature block ──
+    // Firm side: "Yours faithfully / For, <legal company name>", the signer's signature
+    // image (resolved by id at render — may be empty defensively), then their name and
+    // designation. Client side: an "Acknowledged for and on behalf of <entity>" line for
+    // COMPANY clients only, a blank space to sign, then the client's (addressee's) name.
+    // No dates. Wrapped in a keep-together box so it never splits across a page.
+    // Both signature areas reserve the SAME fixed-height box, so the layout is stable
+    // regardless of the uploaded signature's dimensions and the two sides line up. The
+    // firm image sits bottom-aligned inside the box; the client box is blank to sign in.
+    // Lines within a group are tight (override the body's 13px paragraph margin).
+    const SIG_BOX_PX = 72
+    const signerSignature = str(params.signer_signature)
+    const firmSigBox = `<div style="height:${SIG_BOX_PX}px;display:flex;align-items:flex-end;">${
+      signerSignature
+        ? `<img src="${signerSignature}" alt="Signature" style="display:block;max-height:${SIG_BOX_PX}px;max-width:280px;" />`
+        : ''
+    }</div>`
+    const clientSigBox = `<div style="height:${SIG_BOX_PX}px;"></div>`
+    const entityLine = params.is_company
+      ? `<p style="margin:0;">Acknowledged for and on behalf of ${escapeHtml(str(params.entity_name))}</p>`
+      : ''
+    const signature = `<div style="break-inside:avoid;page-break-inside:avoid;margin-top:24px;">
+<p style="margin:0;">Yours faithfully</p>
+<p style="margin:0;">For, <span style="font-weight:700;">${escapeHtml(str(params.company_name))}</span></p>
+${firmSigBox}
+<p style="margin:0;">${escapeHtml(str(params.signer_name))}</p>
+<p style="margin:0;">${escapeHtml(str(params.signer_designation))}</p>
+<div style="height:28px;"></div>
+${entityLine}
+${clientSigBox}
+<p style="margin:0;font-weight:700;">${escapeHtml(str(params.client_name))}</p>
+</div>`
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -463,6 +496,7 @@ ${standards}
 ${privacyHeading}
 ${privacy}
 ${thirdPartyHeading}
-${thirdParty}`
+${thirdParty}
+${signature}`
   },
 }

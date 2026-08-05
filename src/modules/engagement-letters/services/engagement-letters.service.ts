@@ -22,6 +22,7 @@ import type {
   EngagementLetterServices,
   EngagementLetterServiceOption,
   EngagementLetterFirmLegal,
+  EngagementLetterSigner,
 } from '../types/engagement-letters.types'
 
 // SQL fragment: a member's display name.
@@ -296,6 +297,58 @@ export const engagementLetterService = {
       client_name: person.name,
       client_address: person.address,
       client_email: person.email,
+      // Frozen so the signature block's "Acknowledged for and on behalf of <entity>"
+      // line renders for company clients only.
+      is_company: !!client?.is_company,
+    }
+  },
+
+  // ── SIGNER (firm concern person) ──
+  // The firm's concern persons for the "Signed by" dropdown (id + name + designation
+  // + whether they have a signature). The signature image itself is never returned.
+  async firmSigners(firmId: string): Promise<EngagementLetterSigner[]> {
+    const result = await db.query(`SELECT concern_persons FROM firms WHERE id = $1`, [firmId])
+    const persons = (result.rows[0]?.concern_persons ?? []) as Array<{
+      id?: string
+      name?: string
+      designation?: string | null
+      signature_uploaded?: boolean
+    }>
+    return persons
+      .filter((p) => p.id)
+      .map((p) => ({
+        id: p.id as string,
+        name: p.name ?? '',
+        designation: p.designation ?? null,
+        signature_uploaded: !!p.signature_uploaded,
+      }))
+  },
+
+  // Resolve the chosen signer → freeze their name/designation and their ACTIVE
+  // signature id. Rejects if no signer chosen, the id isn't a concern person of this
+  // firm, or that person has no signature. The signature image is looked up by the
+  // frozen id at render time (the row is append-only, so the id always resolves).
+  async resolveSignerSnapshot(firmId: string, concernPersonId: string | null | undefined) {
+    if (!concernPersonId) {
+      throw new AppError(engagementLetterMessages.SIGNER_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    const signer = (await this.firmSigners(firmId)).find((s) => s.id === concernPersonId)
+    if (!signer) {
+      throw new AppError(engagementLetterMessages.SIGNER_NOT_FOUND, HTTP_STATUS.BAD_REQUEST)
+    }
+    const sig = await db.query(
+      `SELECT id FROM concern_person_signatures
+       WHERE concern_person_id = $1 AND is_active = TRUE AND is_deleted = FALSE`,
+      [concernPersonId],
+    )
+    const signatureId = sig.rows[0]?.id as string | undefined
+    if (!signer.signature_uploaded || !signatureId) {
+      throw new AppError(engagementLetterMessages.SIGNER_SIGNATURE_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    return {
+      signer_name: signer.name,
+      signer_designation: signer.designation ?? '',
+      signer_signature_id: signatureId,
     }
   },
 
@@ -396,7 +449,15 @@ export const engagementLetterService = {
     const addressee = await this.buildAddressee(clientId)
     const services = await this.buildServices(clientId)
     const firm = await this.firmLegalDetails(firm_id)
-    return { has_letterhead: lh.rows.length > 0, template: this.templateInfo(), addressee, services, firm }
+    const signers = await this.firmSigners(firm_id)
+    return {
+      has_letterhead: lh.rows.length > 0,
+      template: this.templateInfo(),
+      addressee,
+      services,
+      firm,
+      signers,
+    }
   },
 
   // ── CREATE — a new letter for a client ──
@@ -428,6 +489,9 @@ export const engagementLetterService = {
     if (!firm.email || !firm.contact_no) {
       throw new AppError(engagementLetterMessages.FIRM_CONTACT_REQUIRED, HTTP_STATUS.BAD_REQUEST)
     }
+    // The signer (a firm concern person) is resolved + frozen: name, designation, and
+    // their ACTIVE signature id. Rejects if the chosen person has no signature.
+    const signer = await this.resolveSignerSnapshot(firm_id, input.signer_concern_person_id)
     const params = {
       ...(input.params ?? {}),
       ...addressee,
@@ -437,6 +501,7 @@ export const engagementLetterService = {
       firm_name: firm.legal_firm_name ?? '',
       firm_email: firm.email,
       firm_contact_no: firm.contact_no,
+      ...signer,
     }
 
     // The firm's current letter head (header/footer) is pinned to the letter.
@@ -509,7 +574,21 @@ export const engagementLetterService = {
       [letter.letterhead_id],
     )
     const letterhead = lh.rows[0]?.content ?? undefined
-    return generateEngagementLetterPdf(letter.template_version, letter.params ?? {}, letterhead)
+
+    // Resolve the frozen signer signature (by id) into the base64 image the template
+    // draws. Kept out of the stored params (lean, immutable) — looked up per render;
+    // the row is append-only so the id always resolves, even after the signer changes
+    // their signature. renderBody stays pure: it just reads params.signer_signature.
+    const params = { ...(letter.params ?? {}) } as Record<string, unknown>
+    const signatureId = params.signer_signature_id
+    if (typeof signatureId === 'string' && signatureId) {
+      const sig = await db.query(
+        `SELECT image_base64 FROM concern_person_signatures WHERE id = $1`,
+        [signatureId],
+      )
+      params.signer_signature = sig.rows[0]?.image_base64 ?? ''
+    }
+    return generateEngagementLetterPdf(letter.template_version, params, letterhead)
   },
 
   // ── TEMPLATE — the latest template's parameter definitions (for the form) ──

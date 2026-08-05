@@ -103,15 +103,26 @@ export interface EngagementLetterFirmLegal {
   contact_no: string | null
 }
 
+// A firm concern person the letter can be signed by — the "Signed by" dropdown.
+// `signature_uploaded` gates generation; the signature image is never sent here.
+export interface EngagementLetterSigner {
+  id: string
+  name: string
+  designation: string | null
+  signature_uploaded: boolean
+}
+
 // firm has a letter head (else "not configured yet"), the active template's
 // version + parameter defs (so the frontend picks the matching fields component),
 // the addressee block (client name / address / email + relation choices), the
-// services block (all services + the client's current ones pre-checked), and the
-// firm's legal names (displayed on the form).
+// services block (all services + the client's current ones pre-checked), the
+// firm's legal names (displayed on the form), and the firm's concern persons who
+// can sign (the "Signed by" dropdown).
 export interface EngagementLetterCreateContext {
   has_letterhead: boolean
   template: EngagementLetterTemplateInfo
   addressee: EngagementLetterAddressee
   services: EngagementLetterServices
   firm: EngagementLetterFirmLegal
+  signers: EngagementLetterSigner[]
 }

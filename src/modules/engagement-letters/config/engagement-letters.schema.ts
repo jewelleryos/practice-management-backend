@@ -11,6 +11,10 @@ export const createEngagementLetterSchema = z.object({
   // server-side from this id (never trusts client-sent values) and freezes them
   // into the stored params.
   relative_id: z.string().trim().min(1).nullish(),
+  // Which firm concern person signs the letter (their JSONB id). Required — the
+  // backend snapshots the signer's name/designation and their ACTIVE signature id,
+  // and refuses to generate if the chosen person has no signature.
+  signer_concern_person_id: z.string().trim().min(1).nullish(),
   // The tax-practice services to LIST in the letter, each with an OPTIONAL free-text
   // description. Letter-only — this never writes tax_client_services. The backend
   // re-resolves each id to its service NAME (active tax-practice only) and freezes

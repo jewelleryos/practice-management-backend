@@ -37,6 +37,11 @@ export const engagementLetterMessages = {
   SERVICES_REQUIRED: 'Please select at least one service',
   // The firm has no contact number and/or email — both are printed in the letter.
   FIRM_CONTACT_REQUIRED: "Add the firm's contact number and email before generating the letter",
+  // Signer (firm concern person) selection.
+  SIGNER_REQUIRED: 'Please choose who signs this letter',
+  SIGNER_NOT_FOUND: 'The selected signer is not a concern person of this firm',
+  SIGNER_SIGNATURE_REQUIRED:
+    'The selected signer has no signature. Upload a signature for this concern person first',
 
   NOTES_FETCHED: 'Notes fetched successfully',
   NOTE_ADDED: 'Note added successfully',
