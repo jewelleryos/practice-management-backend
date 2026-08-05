@@ -23,6 +23,7 @@ import type {
   EngagementLetterServiceOption,
   EngagementLetterFirmLegal,
   EngagementLetterSigner,
+  EngagementLetterAckRelation,
 } from '../types/engagement-letters.types'
 
 // SQL fragment: a member's display name.
@@ -252,6 +253,60 @@ export const engagementLetterService = {
     return result.rows.map(toAddresseePerson)
   },
 
+  // A company's PERSON relations for the "Client Acknowledgement" checkbox list —
+  // each with their role (relation type name) and title. The relationship id is the
+  // selectable unit (a person may hold more than one role). The relation type stored
+  // on a company↔person link is that person's role in the company (e.g. "Director").
+  async acknowledgementRelations(companyClientId: string): Promise<EngagementLetterAckRelation[]> {
+    const result = await db.query(
+      `SELECT r.id AS id, oc.name AS name, oc.title AS title, rt.name AS relation
+       FROM tax_client_relationships r
+       JOIN relation_types rt ON rt.id = r.relation_type_id
+       JOIN tax_clients oc ON oc.id = r.related_client_id AND oc.is_deleted = FALSE AND oc.is_company = FALSE
+       WHERE r.client_id = $1 AND r.is_deleted = FALSE
+       UNION
+       SELECT r.id AS id, oc.name AS name, oc.title AS title, rt.name AS relation
+       FROM tax_client_relationships r
+       JOIN relation_types rt ON rt.id = r.relation_type_id
+       JOIN tax_clients oc ON oc.id = r.client_id AND oc.is_deleted = FALSE AND oc.is_company = FALSE
+       WHERE r.related_client_id = $1 AND r.is_deleted = FALSE
+       ORDER BY name`,
+      [companyClientId],
+    )
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      title: (row.title as string | null) ?? null,
+      relation: row.relation as string,
+    }))
+  },
+
+  // Resolve the ticked person relations → frozen acknowledgement blocks, preserving
+  // the client's TICK ORDER. Only valid relationship ids are kept; a company client
+  // must acknowledge with at least one person. Names/titles/relations are resolved
+  // server-side (never trusted from the client).
+  async resolveAcknowledgementsSnapshot(
+    companyClientId: string,
+    ids: string[] | undefined,
+  ): Promise<{ title: string; name: string; relation: string }[]> {
+    const order = Array.isArray(ids) ? ids : []
+    if (order.length === 0) {
+      throw new AppError(engagementLetterMessages.ACKNOWLEDGEMENT_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    const relations = await this.acknowledgementRelations(companyClientId)
+    const byId = new Map(relations.map((r) => [r.id, r]))
+    const resolved = order
+      .filter((id) => byId.has(id))
+      .map((id) => {
+        const r = byId.get(id) as EngagementLetterAckRelation
+        return { title: r.title ?? '', name: r.name, relation: r.relation }
+      })
+    if (resolved.length === 0) {
+      throw new AppError(engagementLetterMessages.ACKNOWLEDGEMENT_REQUIRED, HTTP_STATUS.BAD_REQUEST)
+    }
+    return resolved
+  },
+
   // Build the addressee block for the create screen (see EngagementLetterAddressee).
   async buildAddressee(clientId: string): Promise<EngagementLetterAddressee> {
     const client = await this.clientIdentity(clientId)
@@ -450,6 +505,10 @@ export const engagementLetterService = {
     const services = await this.buildServices(clientId)
     const firm = await this.firmLegalDetails(firm_id)
     const signers = await this.firmSigners(firm_id)
+    // Acknowledgement relations apply to company clients only.
+    const acknowledgement_relations = addressee.is_company
+      ? await this.acknowledgementRelations(clientId)
+      : []
     return {
       has_letterhead: lh.rows.length > 0,
       template: this.templateInfo(),
@@ -457,6 +516,7 @@ export const engagementLetterService = {
       services,
       firm,
       signers,
+      acknowledgement_relations,
     }
   },
 
@@ -492,6 +552,11 @@ export const engagementLetterService = {
     // The signer (a firm concern person) is resolved + frozen: name, designation, and
     // their ACTIVE signature id. Rejects if the chosen person has no signature.
     const signer = await this.resolveSignerSnapshot(firm_id, input.signer_concern_person_id)
+    // Client Acknowledgement — company clients only, at least one person, frozen in
+    // tick order. Person clients don't have this section.
+    const acknowledgements = addressee.is_company
+      ? await this.resolveAcknowledgementsSnapshot(clientId, input.acknowledgement_person_ids)
+      : []
     const params = {
       ...(input.params ?? {}),
       ...addressee,
@@ -502,6 +567,7 @@ export const engagementLetterService = {
       firm_email: firm.email,
       firm_contact_no: firm.contact_no,
       ...signer,
+      acknowledgements,
     }
 
     // The firm's current letter head (header/footer) is pinned to the letter.

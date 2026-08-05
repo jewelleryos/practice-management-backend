@@ -112,6 +112,16 @@ export interface EngagementLetterSigner {
   signature_uploaded: boolean
 }
 
+// A company client's person relation, for the "Client Acknowledgement and
+// Confirmation" checkbox list (company clients only). `id` is the relationship id;
+// `relation` is the person's role (relation type name); `title` is their Mr/Ms etc.
+export interface EngagementLetterAckRelation {
+  id: string
+  name: string
+  title: string | null
+  relation: string
+}
+
 // firm has a letter head (else "not configured yet"), the active template's
 // version + parameter defs (so the frontend picks the matching fields component),
 // the addressee block (client name / address / email + relation choices), the
@@ -125,4 +135,7 @@ export interface EngagementLetterCreateContext {
   services: EngagementLetterServices
   firm: EngagementLetterFirmLegal
   signers: EngagementLetterSigner[]
+  // Company clients only — the person relations that can acknowledge the letter.
+  // Empty for a person client (the section doesn't apply).
+  acknowledgement_relations: EngagementLetterAckRelation[]
 }

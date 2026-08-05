@@ -449,6 +449,34 @@ ${clientSigBox}
 <p style="margin:0;font-weight:700;">${escapeHtml(str(params.client_name))}</p>
 </div>`
 
+    // ── Client Acknowledgement and Confirmation ── (company clients only)
+    // Starts on a NEW page; one block per acknowledging person, in tick order. Each
+    // block is kept together (never split across pages) but persons flow on the same
+    // page. Pronouns are "I" (per person). Blank space to sign; the person's name;
+    // no date. Rendered only when the letter froze at least one acknowledgement.
+    const acks = Array.isArray(params.acknowledgements) ? params.acknowledgements : []
+    const ackEntity = escapeHtml(str(params.entity_name))
+    const ackBlocks = acks
+      .map((a) => {
+        const title = str((a as { title?: unknown })?.title)
+        const name = escapeHtml(str((a as { name?: unknown })?.name))
+        const relation = escapeHtml(str((a as { relation?: unknown })?.relation))
+        const personLabel = title ? `${escapeHtml(title)} ${name}` : name
+        return `<div style="break-inside:avoid;page-break-inside:avoid;margin-top:24px;">
+<p>I ${personLabel}, as ${relation} of ${ackEntity}, hereby acknowledge and accept the terms of this engagement provided to us. We also undertake that we have the capacity to make this engagement (if on behalf of an entity).</p>
+<p style="margin:0;">I also agree that I shall be personally liable for all fees for services performed in accordance with these terms of engagement.</p>
+<div style="height:72px;"></div>
+<p style="margin:0;font-weight:700;">${name}</p>
+</div>`
+      })
+      .join('')
+    const acknowledgement = acks.length
+      ? `<div style="break-before:page;page-break-before:always;">
+<p style="font-weight:700;">Client Acknowledgement and Confirmation</p>
+${ackBlocks}
+</div>`
+      : ''
+
     return `<p style="text-align:left;">${escapeHtml(dateHtml)}</p>
 ${renderAddressee(params)}
 ${salutation}
@@ -497,6 +525,7 @@ ${privacyHeading}
 ${privacy}
 ${thirdPartyHeading}
 ${thirdParty}
-${signature}`
+${signature}
+${acknowledgement}`
   },
 }

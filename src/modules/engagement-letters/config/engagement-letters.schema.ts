@@ -15,6 +15,11 @@ export const createEngagementLetterSchema = z.object({
   // backend snapshots the signer's name/designation and their ACTIVE signature id,
   // and refuses to generate if the chosen person has no signature.
   signer_concern_person_id: z.string().trim().min(1).nullish(),
+  // Company clients only — the relationship ids of the person relations that
+  // acknowledge the letter, in TICK ORDER. The backend resolves each to a frozen
+  // snapshot (title/name/relation) and renders one block per person. At least one
+  // is required for a company client.
+  acknowledgement_person_ids: z.array(z.string().trim().min(1)).optional(),
   // The tax-practice services to LIST in the letter, each with an OPTIONAL free-text
   // description. Letter-only — this never writes tax_client_services. The backend
   // re-resolves each id to its service NAME (active tax-practice only) and freezes

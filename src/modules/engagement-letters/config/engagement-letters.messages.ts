@@ -42,6 +42,8 @@ export const engagementLetterMessages = {
   SIGNER_NOT_FOUND: 'The selected signer is not a concern person of this firm',
   SIGNER_SIGNATURE_REQUIRED:
     'The selected signer has no signature. Upload a signature for this concern person first',
+  // Client Acknowledgement — company clients must acknowledge with ≥1 person.
+  ACKNOWLEDGEMENT_REQUIRED: 'Select at least one person to acknowledge this engagement',
 
   NOTES_FETCHED: 'Notes fetched successfully',
   NOTE_ADDED: 'Note added successfully',
