@@ -2,21 +2,33 @@ import type { DepartmentCode } from '../../../config/departments.constants'
 
 // A concern person attached to a firm (agent/contact with regulatory ids).
 // Stored/returned shape — optional fields are normalized to explicit null.
+// `id` is a stable ULID (the signatures table maps to it); `signature_uploaded`
+// is a denormalized flag so callers can tell who has a signature without a join.
 export interface ConcernPerson {
+  id: string
   name: string
   designation: string | null
   membership_number: string | null
   tax_agent_number: string | null
   asic_agent_id: string | null
+  signature_uploaded: boolean
 }
 
-// Input shape (from the validated request) — optional fields may be absent.
+// Input shape (from the validated request) — optional fields may be absent. `id`
+// is echoed back for EXISTING persons so edits preserve it; new persons omit it.
+// `signature_uploaded` is server-managed and never accepted from the client.
 export interface ConcernPersonInput {
+  id?: string
   name: string
   designation?: string | null
   membership_number?: string | null
   tax_agent_number?: string | null
   asic_agent_id?: string | null
+}
+
+// Payload to upload/replace a concern person's signature (base64 data URI).
+export interface UploadSignatureRequest {
+  image_base64: string
 }
 
 // A firm — master data. Belongs to exactly one department (fixed at creation).

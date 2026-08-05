@@ -18,4 +18,10 @@ export const firmMessages = {
   LETTERHEAD_IMAGES_FETCHED: 'Footer images fetched successfully',
   LETTERHEAD_SAVED: 'Letter head saved successfully',
   LETTERHEAD_NOT_FOUND: 'No letter head found for this firm',
+  // Concern-person signatures
+  CONCERN_PERSON_NOT_FOUND: 'Concern person not found on this firm',
+  SIGNATURE_REQUIRED: 'A signature image is required',
+  SIGNATURE_INVALID_TYPE: 'Signature must be a PNG, JPG or WebP image',
+  SIGNATURE_TOO_LARGE: 'Signature image must be 500 KB or smaller',
+  SIGNATURE_UPLOADED: 'Signature uploaded successfully',
 }

@@ -23,11 +23,40 @@ const optionalEmail = z.preprocess(
 )
 
 const concernPersonSchema = z.object({
+  // Echoed back for EXISTING persons so edits preserve the id (and their signature).
+  // New persons omit it; the service mints one. signature_uploaded is server-managed
+  // and intentionally NOT accepted here (unknown keys are stripped by z.object).
+  id: z.string().trim().max(40).optional(),
   name: z.string().trim().min(1, 'Concern person name is required').max(120),
   designation: optionalText(120),
   membership_number: optionalText(80),
   tax_agent_number: optionalText(80),
   asic_agent_id: optionalText(80),
+})
+
+// ── Concern-person signature upload ──
+// Accepted image types and hard size cap (500 KB) for a signature. Stored as a
+// base64 data URI; validated here so the service can trust the payload.
+const SIGNATURE_DATA_URI = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/]+=*)$/
+const SIGNATURE_MAX_BYTES = 500 * 1024
+
+export const uploadSignatureSchema = z.object({
+  image_base64: z
+    .string()
+    .trim()
+    .min(1, firmMessages.SIGNATURE_REQUIRED)
+    .superRefine((value, ctx) => {
+      const match = SIGNATURE_DATA_URI.exec(value)
+      if (!match) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: firmMessages.SIGNATURE_INVALID_TYPE })
+        return
+      }
+      // Decoded byte size from the base64 payload (after the comma).
+      const bytes = Buffer.from(match[2], 'base64').length
+      if (bytes > SIGNATURE_MAX_BYTES) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: firmMessages.SIGNATURE_TOO_LARGE })
+      }
+    }),
 })
 
 // Legal details (registered names). Stored nullable; REQUIRED at the app layer for

@@ -17,15 +17,53 @@ import type {
 } from '../types/firms.types'
 import type { DepartmentCode } from '../../../config/departments.constants'
 
-// Normalize concern-person input to the stored shape (explicit nulls).
-function normalizeConcernPersons(list: ConcernPersonInput[]): ConcernPerson[] {
-  return list.map((p) => ({
+// Trim/normalize an input person's editable fields to the stored shape (explicit
+// nulls). id + signature_uploaded are assigned by the callers below, not here.
+function normalizePersonFields(p: ConcernPersonInput) {
+  return {
     name: p.name.trim(),
     designation: p.designation ?? null,
     membership_number: p.membership_number ?? null,
     tax_agent_number: p.tax_agent_number ?? null,
     asic_agent_id: p.asic_agent_id ?? null,
-  }))
+  }
+}
+
+// Generate `n` ULIDs via the DB (same generator the tables use), so app-assigned
+// concern-person ids stay consistent with everything else.
+async function generateUlids(n: number): Promise<string[]> {
+  if (n <= 0) return []
+  const result = await db.query(`SELECT generate_ulid() AS id FROM generate_series(1, $1)`, [n])
+  return result.rows.map((r) => r.id as string)
+}
+
+// CREATE: every concern person is new → mint a fresh id, signature_uploaded = false.
+async function buildConcernPersonsForCreate(list: ConcernPersonInput[]): Promise<ConcernPerson[]> {
+  const ids = await generateUlids(list.length)
+  return list.map((p, i) => ({ id: ids[i]!, ...normalizePersonFields(p), signature_uploaded: false }))
+}
+
+// UPDATE: reconcile against the stored persons. An incoming person whose id matches
+// an existing one KEEPS that id and its server-managed signature_uploaded flag (so
+// editing name/designation never touches signatures and the flag can't be spoofed);
+// anything else is treated as new (fresh id, flag false). This preserves the id→
+// signature mapping across firm edits — the whole reason concern persons have ids.
+async function reconcileConcernPersons(
+  incoming: ConcernPersonInput[],
+  current: ConcernPerson[],
+): Promise<ConcernPerson[]> {
+  const currentById = new Map(current.map((p) => [p.id, p]))
+  const newCount = incoming.filter((p) => !p.id || !currentById.has(p.id)).length
+  const freshIds = await generateUlids(newCount)
+  let f = 0
+  return incoming.map((p) => {
+    const existing = p.id ? currentById.get(p.id) : undefined
+    return {
+      id: existing ? existing.id : freshIds[f++]!,
+      ...normalizePersonFields(p),
+      signature_uploaded: existing ? existing.signature_uploaded : false,
+    }
+  })
 }
 
 const SELECT_COLUMNS = `id, department, name,
@@ -156,7 +194,7 @@ export const firmService = {
         data.address ?? null,
         data.email ?? null,
         data.contact_no ?? null,
-        JSON.stringify(normalizeConcernPersons(data.concern_persons)),
+        JSON.stringify(await buildConcernPersonsForCreate(data.concern_persons)),
         data.is_active,
         data.legal_company_name ?? null,
         data.legal_trust_name ?? null,
@@ -200,8 +238,11 @@ export const firmService = {
     if (data.email !== undefined) setField('email', data.email ?? null)
     if (data.contact_no !== undefined) setField('contact_no', data.contact_no ?? null)
     if (data.concern_persons !== undefined) {
+      // Reconcile against the current persons so existing ids (and their signature
+      // flags) survive the edit; new persons get fresh ids.
+      const reconciled = await reconcileConcernPersons(data.concern_persons, current.concern_persons)
       updates.push(`concern_persons = $${i++}::jsonb`)
-      values.push(JSON.stringify(normalizeConcernPersons(data.concern_persons)))
+      values.push(JSON.stringify(reconciled))
     }
     if (data.is_active !== undefined) setField('is_active', data.is_active)
 
@@ -211,6 +252,59 @@ export const firmService = {
     await db.query(`UPDATE firms SET ${updates.join(', ')} WHERE id = $${i}`, values)
 
     return this.getById(id)
+  },
+
+  // Upload/replace a concern person's signature. Append-only: the previous active
+  // signature is deactivated (kept, never deleted) and a new active row inserted,
+  // then the person's denormalized `signature_uploaded` flag is set. One
+  // transaction so the "one active per person" invariant never breaks mid-write.
+  async uploadConcernPersonSignature(
+    firmId: string,
+    concernPersonId: string,
+    imageBase64: string,
+    userId: string,
+  ): Promise<Firm> {
+    const firm = await this.getById(firmId) // 404s if missing/deleted
+    const person = firm.concern_persons.find((p) => p.id === concernPersonId)
+    if (!person) {
+      throw new AppError(firmMessages.CONCERN_PERSON_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
+
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      // Deactivate the current active signature first (partial unique index allows
+      // only one active per person), then insert the new active one.
+      await client.query(
+        `UPDATE concern_person_signatures
+         SET is_active = FALSE
+         WHERE concern_person_id = $1 AND is_active = TRUE AND is_deleted = FALSE`,
+        [concernPersonId],
+      )
+      await client.query(
+        `INSERT INTO concern_person_signatures (firm_id, concern_person_id, image_base64, created_by)
+         VALUES ($1, $2, $3, $4)`,
+        [firmId, concernPersonId, imageBase64, userId],
+      )
+      // Flip the denormalized flag (once true it stays true).
+      if (!person.signature_uploaded) {
+        const updated = firm.concern_persons.map((p) =>
+          p.id === concernPersonId ? { ...p, signature_uploaded: true } : p,
+        )
+        await client.query(`UPDATE firms SET concern_persons = $1::jsonb WHERE id = $2`, [
+          JSON.stringify(updated),
+          firmId,
+        ])
+      }
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+
+    return this.getById(firmId)
   },
 
   // Soft-delete. Blocked while any member still has access — reassign first.

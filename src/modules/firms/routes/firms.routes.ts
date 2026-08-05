@@ -1,7 +1,12 @@
 import { Hono } from 'hono'
 import { firmService } from '../services/firms.service'
 import { firmMessages } from '../config/firms.messages'
-import { createFirmSchema, updateFirmSchema, saveLetterheadSchema } from '../config/firms.schema'
+import {
+  createFirmSchema,
+  updateFirmSchema,
+  saveLetterheadSchema,
+  uploadSignatureSchema,
+} from '../config/firms.schema'
 import { successResponse } from '../../../utils/response'
 import { errorHandler } from '../../../utils/error-handler'
 import { authWithPermission } from '../../../middleware/auth.middleware'
@@ -139,6 +144,29 @@ firmRoutes.post('/:firmId/letterhead', authWithPermission(PERMISSIONS.FIRM.MANAG
     return errorHandler(error, c)
   }
 })
+
+// POST /api/firms/:firmId/concern-persons/:personId/signature — upload/replace a
+// concern person's signature image. Edits firm master data, so FIRM.UPDATE gated.
+// Declared before /:id so it isn't shadowed.
+firmRoutes.post(
+  '/:firmId/concern-persons/:personId/signature',
+  authWithPermission(PERMISSIONS.FIRM.UPDATE),
+  async (c) => {
+    try {
+      const body = await c.req.json()
+      const data = uploadSignatureSchema.parse(body)
+      const result = await firmService.uploadConcernPersonSignature(
+        c.req.param('firmId')!,
+        c.req.param('personId')!,
+        data.image_base64,
+        c.get('user').id,
+      )
+      return successResponse<Firm>(c, firmMessages.SIGNATURE_UPLOADED, result)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
 
 // GET /api/firms/:id — one firm
 firmRoutes.get('/:id', authWithPermission(PERMISSIONS.FIRM.READ), async (c) => {
