@@ -4,6 +4,10 @@ import {
   SERVICE_FREQUENCY_VALUES,
   type ServiceFrequency,
 } from '../../../config/service-frequencies.constants'
+import {
+  AUSTRALIAN_STATE_CODES,
+  type AustralianStateCode,
+} from '../../../config/australian-states.constants'
 
 // Optional free-text: trims, treats '' as null, allows omitted/null.
 const optionalText = (max: number) =>
@@ -22,6 +26,37 @@ const frequencyEnum = z.enum(
   SERVICE_FREQUENCY_VALUES as unknown as [ServiceFrequency, ...ServiceFrequency[]],
   { errorMap: () => ({ message: taxClientMessages.SERVICE_FREQUENCY_INVALID }) },
 )
+
+// Australian state CODE (NSW/VIC/…) or null. Empty string is treated as null.
+// The full state name is derived from this code in the service and stored too.
+const stateEnum = z.enum(
+  AUSTRALIAN_STATE_CODES as unknown as [AustralianStateCode, ...AustralianStateCode[]],
+  { errorMap: () => ({ message: taxClientMessages.INVALID_STATE }) },
+)
+const optionalStateCode = z
+  .literal('')
+  .transform(() => null)
+  .or(stateEnum)
+  .nullish()
+
+// Australian postcode — exactly 4 digits, or null. Empty string → null.
+const optionalPostcode = z
+  .string()
+  .trim()
+  .regex(/^\d{4}$/, taxClientMessages.INVALID_POSTCODE)
+  .nullish()
+  .or(z.literal('').transform(() => null))
+
+// Contact email — a valid address, or null. Empty string → null. Trimmed and
+// lower-cased so storage/lookups/display stay consistent.
+const optionalEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(255)
+  .email(taxClientMessages.INVALID_EMAIL)
+  .nullish()
+  .or(z.literal('').transform(() => null))
 
 // Date-only string (YYYY-MM-DD) or null.
 const optionalDate = z
@@ -68,8 +103,13 @@ export const createTaxClientSchema = z.object({
   abn: optionalText(20),
   acn: optionalText(20),
   trading_name: optionalText(200),
+  address_line: optionalText(255),
+  locality: optionalText(120),
+  state_code: optionalStateCode,
+  postcode: optionalPostcode,
+  email: optionalEmail,
   bank_account_name: optionalText(200),
-  bank_account_prefix: optionalText(3),
+  bank_account_prefix: optionalText(6),
   bank_account_number: optionalText(9),
   director_id: optionalText(50),
   client_group_id: z.string().trim().min(1).nullish(),
@@ -92,8 +132,13 @@ export const updateTaxClientSchema = z.object({
   abn: optionalText(20),
   acn: optionalText(20),
   trading_name: optionalText(200),
+  address_line: optionalText(255),
+  locality: optionalText(120),
+  state_code: optionalStateCode,
+  postcode: optionalPostcode,
+  email: optionalEmail,
   bank_account_name: optionalText(200),
-  bank_account_prefix: optionalText(3),
+  bank_account_prefix: optionalText(6),
   bank_account_number: optionalText(9),
   director_id: optionalText(50),
   client_group_id: z.string().trim().min(1).nullish(),
