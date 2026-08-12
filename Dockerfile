@@ -45,5 +45,9 @@ ENV PORT=8787
 ENV HOST=0.0.0.0
 EXPOSE 8787
 
-# Bun executes the TypeScript entrypoint directly — no compile, no --hot in prod.
-CMD ["bun", "run", "src/index.ts"]
+# On every start: apply any pending SQL migrations, THEN boot the API. `bun run
+# migrate` is idempotent (already-applied files are skipped) and exits non-zero if
+# a migration fails — the `&&` means a failed migration aborts startup instead of
+# running the server against a half-migrated DB. This keeps deploys free of any
+# "pending migration" drift.
+CMD ["sh", "-c", "bun run migrate && bun run src/index.ts"]
