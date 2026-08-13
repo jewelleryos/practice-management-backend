@@ -154,6 +154,26 @@ taxTaskRoutes.patch(
   },
 )
 
+// POST /api/tax-tasks/work-status-board — create a (service) task straight from an
+// empty board cell. Board-owned: gated ONLY by WORK_STATUS_BOARD.CREATE_TASK (not
+// TAX_TASK.CREATE). Same payload/logic as the normal create (checklist snapshot +
+// duplicate guard come for free); the board sends the known client/service/period
+// context plus the assignee/reviewer picked in the modal. Static first segment, so
+// it wins over /:id.
+taxTaskRoutes.post(
+  '/work-status-board',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.CREATE_TASK),
+  async (c) => {
+    try {
+      const data = createTaxTaskSchema.parse(await c.req.json())
+      const result = await taxTaskService.create(c.get('user'), data)
+      return successResponse<CreateTaxTaskResult>(c, taxTaskMessages.CREATED, result, 201)
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
 // GET /api/tax-tasks/:id — one task (scoped like the list).
 taxTaskRoutes.get('/:id', authWithPermission(), async (c) => {
   try {

@@ -2,6 +2,7 @@
   "name": "backend",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "migrate": "bun run src/scripts/migrate.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
