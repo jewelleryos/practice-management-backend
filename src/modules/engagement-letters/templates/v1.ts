@@ -72,9 +72,17 @@ export const templateV1: EngagementLetterTemplate = {
   parameters: [
     { key: 'letter_date', label: 'Date', type: 'date', required: true },
     { key: 'discussion_date', label: 'Discussion date', type: 'date', required: true },
-    // Engagement Period — the period start and end dates.
+    // Engagement Period — the period start and end dates. The end date is required
+    // ONLY when the engagement is not open-ended: if `engagement_until_further` is
+    // ticked the letter reads "until further communication" and no end date is set.
     { key: 'engagement_start', label: 'Engagement period start date', type: 'date', required: true },
-    { key: 'engagement_end', label: 'Engagement period end date', type: 'date', required: true },
+    { key: 'engagement_end', label: 'Engagement period end date', type: 'date', required: false },
+    {
+      key: 'engagement_until_further',
+      label: 'Continue until further communication',
+      type: 'boolean',
+      required: false,
+    },
     // Your Responsibilities: the "advice and/or service" choice, and the free-text
     // description of further information/actions required from the client.
     { key: 'responsibility_type', label: 'Advice and/or service', type: 'choice', required: true },
@@ -211,14 +219,19 @@ export const templateV1: EngagementLetterTemplate = {
     // Section heading — bold, static template text.
     const engHeading = `<p style="font-weight:700;">Engagement Period</p>`
 
-    // Engagement period sentence — the two "<date>" placeholders are the period start
-    // and end dates. Rendered only when both are present.
+    // Engagement period sentence. When "continue until further communication" is
+    // ticked the period is open-ended (no end date); otherwise it runs to the end
+    // date. Rendered only when the start date is present.
     const engStart = formatLetterDate(params.engagement_start)
     const engEnd = formatLetterDate(params.engagement_end)
-    const engPeriod =
-      engStart && engEnd
-        ? `<p>The engagement period commences on ${escapeHtml(engStart)} and will continue until ${escapeHtml(engEnd)}.</p>`
-        : ''
+    const engUntilFurther = params.engagement_until_further === true
+    const engPeriod = engStart
+      ? engUntilFurther
+        ? `<p>The engagement period commences on ${escapeHtml(engStart)} and will continue until further communication.</p>`
+        : engEnd
+          ? `<p>The engagement period commences on ${escapeHtml(engStart)} and will continue until ${escapeHtml(engEnd)}.</p>`
+          : ''
+      : ''
 
     // Section heading — bold, static template text.
     const feesHeading = `<p style="font-weight:700;">Professional Fees and Payments</p>`
@@ -354,13 +367,18 @@ export const templateV1: EngagementLetterTemplate = {
           )}, GST inclusive.</p>`
         : ''
 
-    // Costs of Recovery clause — plain text (no bold lead-in). The "<Company Name>
-    // <trustee name> <Firm name>" placeholders are the firm's registered legal names,
-    // frozen into params at create time; they appear together (space-joined, empties
-    // dropped) in both sentences.
-    const recoveryNames = [str(params.company_name), str(params.trust_name), str(params.firm_name)]
-      .filter(Boolean)
-      .join(' ')
+    // Costs of Recovery clause — plain text (no bold lead-in). The firm's registered
+    // legal names (frozen into params at create time) are joined with connectors:
+    //   "<Company Name> as <Trustee Name> trading as <Firm Name>".
+    // Built progressively so a missing part just drops itself and its connector.
+    const recoveryNames = (() => {
+      let names = str(params.company_name)
+      const trusteeName = str(params.trust_name)
+      const firmName = str(params.firm_name)
+      if (trusteeName) names += (names ? ' as ' : '') + trusteeName
+      if (firmName) names += (names ? ' trading as ' : '') + firmName
+      return names
+    })()
     const costsOfRecovery = `<p>Costs of Recovery - The debtor/s shall pay for all costs actually incurred by ${escapeHtml(
       recoveryNames,
     )} in the recovery of any monies owed under this Agreement. You agree to be liable for and indemnify ${escapeHtml(
@@ -404,13 +422,13 @@ export const templateV1: EngagementLetterTemplate = {
 <p>We may also use your personal information for the purpose of providing marketing information to you. Please let us know if you do not want this information to be sent to you.</p>
 <p>To provide our services, we may disclose your information to third parties engaged to perform CDD including identification checks, administrative or other business management services. We may also disclose your personal information to third parties engaged to undertake specific processes, functions or activities and/or provide services for us.</p>
 <p>Subject to our legal, regulatory and professional obligations, any disclosure is always on a confidential basis. We may disclose your personal information if required or authorised by law, including as relevant the AML/CTF Legislation.</p>
-<p>We may disclose personal information to overseas recipients in order to provide necessary services and for administrative or other business management purposes. Before disclosing any personal information to an overseas recipient, we take steps reasonable in the circumstances to ensure the overseas recipient complies with the Australian Privacy Principles or is bound by a substantially similar privacy scheme unless you consent to the overseas disclosure or it is otherwise required or permitted by law.</p>
+<p>We may disclose personal information to overseas recipients in India in order to provide necessary services and for administrative or other business management purposes. Before disclosing any personal information to an overseas recipient, we take steps reasonable in the circumstances to ensure the overseas recipient complies with the Australian Privacy Principles or is bound by a substantially similar privacy scheme unless you consent to the overseas disclosure or it is otherwise required or permitted by law.</p>
 <p>If you would like to access, or seek correction of, the personal information we collect and hold about you, or otherwise enquire or complain about our approach to privacy, please contact our privacy compliance officer on ${escapeHtml(str(params.firm_contact_no))} or at ${escapeHtml(str(params.firm_email))}. Our privacy policy contains further information about these processes.</p>`
 
     // Third Party Involvement — bold heading + static paragraphs. Pronouns fixed
     // (we / our / us). Partial for now: more paragraphs to be added later.
     const thirdPartyHeading = `<p style="font-weight:700;">Third Party Involvement</p>`
-    const thirdParty = `<p>At times we may outsource some of our work which involves us entering into an agreement with a third party to provide specific processes, functions, services or activities for us. If we decide to do this as part of performing the services for you, we will contact you first to seek your approval to engage other parties.</p>
+    const thirdParty = `<p>We engage a third-party professional located in India to assist us in preparing your work. In doing so, your personal information (including your tax file number) will be disclosed to and accessible by that firm, which is bound by a written agreement to keep it confidential, use it only for this purpose, and protect it with appropriate security. We remain fully responsible for your work and review and approve it before lodgement, and we take reasonable steps to ensure your information is handled in line with the Australian Privacy Principles. By signing, you consent to this disclosure.</p>
 <p>In providing our services, we use Google Drive, a cloud storage service provided by Google LLC, to securely store signed PDF documents and related records. These documents may be stored and processed on Google's servers located in various countries where Google or its service providers operate data centres.</p>
 <p>This terms of engagement is a contract between you and ${escapeHtml(str(params.firm_name))}, and you agree that none of the third parties we use will have any liability to you and you will not bring any claim or proceedings of any nature in connection with this engagement against any third party that we may use to provide the services. This exclusion will not apply to any liability, claim or proceeding founded on an allegation of fraud or other liability that cannot be excluded under law.</p>
 <p>Please contact us if you have any queries about this engagement. Please sign and return the confirmation of acceptance of this engagement.</p>

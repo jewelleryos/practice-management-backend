@@ -12,6 +12,7 @@ export type ParameterType =
   | 'date' // calendar date (stored/rendered as the viewer sees fit)
   | 'number' // numeric value (e.g. a fee)
   | 'choice' // one of a fixed set (e.g. we/us/our vs I/me/my)
+  | 'boolean' // a true/false toggle (e.g. "continue until further communication")
   | 'list' // a repeatable list of simple values (e.g. the services)
   | 'block' // an optional/repeatable rich block (e.g. an outsourcing clause)
 
