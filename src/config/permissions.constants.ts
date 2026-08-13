@@ -160,6 +160,11 @@ export const PERMISSIONS = {
     // Change a task's work status directly from the board (its own capability,
     // independent of task edit rights). Enforced by a dedicated board route.
     CHANGE_WORK_STATUS: 1202,
+    // Create a (service) task directly from an empty board cell. Its OWN capability,
+    // independent of TAX_TASK.CREATE — a member can be allowed to fill in missing
+    // tasks from the board without holding the Tasks-module create right. Enforced
+    // by a dedicated board route.
+    CREATE_TASK: 1203,
   },
   // Personal tasks (tax_practice) — a member's private to-dos, visible only to
   // the creator and the followers they loop in. A SINGLE permission gates access
@@ -209,6 +214,7 @@ export type PermissionAction =
   | 'VIEW_ACTIVITY'
   | 'VIEW'
   | 'CHANGE_WORK_STATUS'
+  | 'CREATE_TASK'
   | 'ACCESS'
   | 'MANAGE_LETTERHEAD'
   | 'MANAGE_ENGAGEMENT_LETTERS'
@@ -423,6 +429,12 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         code: PERMISSIONS.WORK_STATUS_BOARD.CHANGE_WORK_STATUS,
         action: 'CHANGE_WORK_STATUS',
         label: 'Change work status',
+        requires: [PERMISSIONS.WORK_STATUS_BOARD.VIEW],
+      },
+      {
+        code: PERMISSIONS.WORK_STATUS_BOARD.CREATE_TASK,
+        action: 'CREATE_TASK',
+        label: 'Create task from board',
         requires: [PERMISSIONS.WORK_STATUS_BOARD.VIEW],
       },
     ],

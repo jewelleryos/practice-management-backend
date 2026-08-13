@@ -42,6 +42,14 @@ memberRoutes.get('/for-tax-client-edit', authWithPermission(PERMISSIONS.TAX_CLIE
 // Same active-member options for the task create form (preparer / reviewer
 // pickers). Gated on TAX_TASK.CREATE so a create-only member can load them.
 memberRoutes.get('/for-tax-task', authWithPermission(PERMISSIONS.TAX_TASK.CREATE), membersForTaxClient)
+// Same active-member options (preparer / reviewer) for the Work Status board's
+// create-task modal. Gated on the board's OWN CREATE_TASK permission so a member
+// can fill in tasks from the board without holding TAX_TASK.CREATE.
+memberRoutes.get(
+  '/for-work-status-board',
+  authWithPermission(PERMISSIONS.WORK_STATUS_BOARD.CREATE_TASK),
+  membersForTaxClient,
+)
 
 // GET /api/members/:id — full detail (role, departments, firms, permissions)
 memberRoutes.get('/:id', authWithPermission(PERMISSIONS.MEMBER.READ), async (c) => {

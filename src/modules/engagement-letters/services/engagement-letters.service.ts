@@ -151,11 +151,27 @@ export const engagementLetterService = {
       )
     }
 
-    // Cross-field (v1): the engagement period must not end before it starts. Both are
-    // YYYY-MM-DD strings, so a plain string comparison is chronological.
+    // Cross-field (v1): the engagement period end date. It is required UNLESS the
+    // engagement is open-ended ("continue until further communication"). When an end
+    // date is given it must not fall before the start (both are YYYY-MM-DD strings, so
+    // a plain string comparison is chronological).
     const engStart = params.engagement_start
     const engEnd = params.engagement_end
-    if (typeof engStart === 'string' && typeof engEnd === 'string' && engEnd < engStart) {
+    const engUntilFurther = params.engagement_until_further === true
+    const engEndMissing =
+      engEnd === undefined ||
+      engEnd === null ||
+      (typeof engEnd === 'string' && engEnd.trim() === '')
+    if (!engUntilFurther && engEndMissing) {
+      throw new AppError(engagementLetterMessages.MISSING_REQUIRED_FIELD, HTTP_STATUS.BAD_REQUEST)
+    }
+    if (
+      !engUntilFurther &&
+      typeof engStart === 'string' &&
+      typeof engEnd === 'string' &&
+      engEnd !== '' &&
+      engEnd < engStart
+    ) {
       throw new AppError(
         engagementLetterMessages.ENGAGEMENT_END_BEFORE_START,
         HTTP_STATUS.BAD_REQUEST,
