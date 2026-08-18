@@ -2,6 +2,7 @@ import { db } from '../../../lib/db'
 import { entityTypeMessages } from '../config/entity-types.messages'
 import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
+import { annualReviewService } from '../../annual-reviews/services/annual-reviews.service'
 import type {
   EntityType,
   EntityTypeListResponse,
@@ -9,7 +10,7 @@ import type {
   UpdateEntityTypeRequest,
 } from '../types/entity-types.types'
 
-const COLUMNS = 'id, name, description, created_at, updated_at'
+const COLUMNS = 'id, name, description, annual_review_enabled, created_at, updated_at'
 
 export const entityTypeService = {
   // List non-deleted entity types, alphabetical by name.
@@ -58,8 +59,9 @@ export const entityTypeService = {
   async create(data: CreateEntityTypeRequest): Promise<EntityType> {
     await this.assertNameAvailable(data.name)
     const result = await db.query(
-      `INSERT INTO entity_types (name, description) VALUES ($1, $2) RETURNING id`,
-      [data.name, data.description ?? null],
+      `INSERT INTO entity_types (name, description, annual_review_enabled)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [data.name, data.description ?? null, data.annual_review_enabled ?? false],
     )
     return this.getById(result.rows[0].id)
   },
@@ -79,10 +81,30 @@ export const entityTypeService = {
       updates.push(`description = $${i++}`)
       values.push(data.description ?? null)
     }
+    if (data.annual_review_enabled !== undefined) {
+      updates.push(`annual_review_enabled = $${i++}`)
+      values.push(data.annual_review_enabled)
+    }
     if (updates.length === 0) return this.getById(id)
 
     values.push(id)
     await db.query(`UPDATE entity_types SET ${updates.join(', ')} WHERE id = $${i}`, values)
+
+    // Switching the toggle ON backfills the current year immediately, so enabling
+    // "Company" fills the Annual Review page straight away rather than leaving it
+    // empty until Sunday. The sweep is idempotent, so doing this here costs nothing.
+    //
+    // Wrapped because its failure must NEVER stop an entity type being saved — the
+    // weekly sweep and the page-load safety net will both pick up the slack.
+    if (data.annual_review_enabled === true) {
+      try {
+        const year = await annualReviewService.currentYear()
+        await annualReviewService.ensureAnnualReviews(year)
+      } catch (err) {
+        console.error('[annual-review] backfill after entity-type enable failed', err)
+      }
+    }
+
     return this.getById(id)
   },
 }

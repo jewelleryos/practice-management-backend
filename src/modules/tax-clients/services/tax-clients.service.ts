@@ -6,6 +6,7 @@ import { HTTP_STATUS } from '../../../config/constants'
 import { PERMISSIONS } from '../../../config/permissions.constants'
 import { SERVICE_FREQUENCY_VALUES } from '../../../config/service-frequencies.constants'
 import { australianStateName } from '../../../config/australian-states.constants'
+import { annualReviewService } from '../../annual-reviews/services/annual-reviews.service'
 import type { AuthUser } from '../../../middleware/auth.middleware'
 import type {
   CreateTaxClientRequest,
@@ -452,6 +453,18 @@ export const taxClientService = {
       }
 
       await client.query('COMMIT')
+
+      // Generate this client's annual review row now, so a newly added client shows
+      // on the Annual Review page instantly rather than waiting for Sunday's sweep.
+      // Deliberately AFTER the commit and fully wrapped: the client is already saved
+      // at this point, and a failure here must never turn a successful save into an
+      // error for the user. The weekly sweep will pick up anything missed.
+      try {
+        await annualReviewService.syncClient(clientId)
+      } catch (err) {
+        console.error('[annual-review] syncClient after client create failed', err)
+      }
+
       return this.getById(actingUser, clientId)
     } catch (error) {
       await client.query('ROLLBACK')
@@ -679,6 +692,17 @@ export const taxClientService = {
       }
 
       await client.query('COMMIT')
+
+      // Keep the annual review row in step if the entity type, incorporation date or
+      // status changed. Corrects the current year onward only — past years keep the
+      // date they were generated with, deliberately. Same guarantee as create: this
+      // can never turn a successful save into an error.
+      try {
+        await annualReviewService.syncClient(id)
+      } catch (err) {
+        console.error('[annual-review] syncClient after client update failed', err)
+      }
+
       return this.getById(actingUser, id)
     } catch (error) {
       await client.query('ROLLBACK')

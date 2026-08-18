@@ -4,6 +4,9 @@ export interface EntityType {
   id: string
   name: string
   description: string | null
+  // When true, active clients of this entity type that have an incorporation date
+  // get one annual review row per calendar year. Off by default.
+  annual_review_enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -11,11 +14,13 @@ export interface EntityType {
 export interface CreateEntityTypeRequest {
   name: string
   description?: string | null
+  annual_review_enabled?: boolean
 }
 
 export interface UpdateEntityTypeRequest {
   name?: string
   description?: string | null
+  annual_review_enabled?: boolean
 }
 
 export interface EntityTypeListResponse {

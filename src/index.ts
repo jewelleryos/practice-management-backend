@@ -22,6 +22,8 @@ import { taxClientRoutes } from './modules/tax-clients/routes/tax-clients.routes
 import { taxTaskRoutes } from './modules/tax-tasks/routes/tax-tasks.routes'
 import { taxPersonalTaskRoutes } from './modules/tax-personal-tasks/routes/tax-personal-tasks.routes'
 import { engagementLetterRoutes } from './modules/engagement-letters/routes/engagement-letters.routes'
+import { annualReviewRoutes } from './modules/annual-reviews/routes/annual-reviews.routes'
+import { startScheduler } from './lib/scheduler'
 import type { AppEnv } from './types/hono.types'
 
 const app = new Hono<AppEnv>()
@@ -68,6 +70,9 @@ app.route('/api/tax-personal-tasks', taxPersonalTaskRoutes)
 // Engagement letters — per-letter operations + notes (client-nested list/create
 // live under /api/tax-clients/:clientId/engagement-letters)
 app.route('/api/engagement-letters', engagementLetterRoutes)
+// Annual Review — ASIC annual-review tracker. Rows are generated from each client's
+// incorporation date; only status and notes are editable.
+app.route('/api/annual-reviews', annualReviewRoutes)
 
 // Master data (name + description lookups)
 app.route('/api/entity-types', entityTypeRoutes)
@@ -79,6 +84,10 @@ app.route('/api/work-statuses', workStatusRoutes)
 app.route('/api/loan-types', loanTypeRoutes)
 app.route('/api/mortgage-tasks', mortgageTaskRoutes)
 app.route('/api/mortgage-personal-tasks', mortgagePersonalTaskRoutes)
+
+// Background jobs. Currently just the weekly annual-review sweep. It catches and
+// logs its own errors, so a failing job can never take the API down.
+startScheduler()
 
 // Server configuration
 const port = Number(process.env.PORT) || 8787
