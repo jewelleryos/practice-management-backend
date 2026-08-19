@@ -70,6 +70,15 @@ const ROW_SELECT = `
   LEFT JOIN entity_types et ON et.id = c.entity_type_id
 `
 
+// A review is only LISTED while its client's entity type still has the Annual
+// review toggle on. Unticking an entity type therefore hides its reviews straight
+// away, but deletes nothing - tick it again and they come back with their status
+// and notes. Written once here and used by every query that builds the page.
+// (Deliberately not part of ROW_SELECT, which also serves the single-row read
+// after an update.)
+const ENTITY_JOIN = `JOIN entity_types et ON et.id = c.entity_type_id`
+const ENTITY_ENABLED_SQL = `et.is_deleted = FALSE AND et.annual_review_enabled = TRUE`
+
 export const annualReviewService = {
   // Firms this member can see clients for: their granted firms that belong to the
   // Tax Practice department. Visibility everywhere is scoped to this set.
@@ -209,6 +218,7 @@ export const annualReviewService = {
       'c.is_deleted = FALSE',
       'ar.year = $1',
       'c.firm_id = ANY($2)',
+      ENTITY_ENABLED_SQL,
     ]
     const values: any[] = [year, firmIds]
     let i = 3
@@ -236,6 +246,7 @@ export const annualReviewService = {
       `SELECT COUNT(*)::INT AS n
        FROM annual_reviews ar
        JOIN tax_clients c ON c.id = ar.client_id
+       ${ENTITY_JOIN}
        WHERE ${whereSql}`,
       values,
     )
@@ -255,8 +266,10 @@ export const annualReviewService = {
       `SELECT ar.status, COUNT(*)::INT AS n
        FROM annual_reviews ar
        JOIN tax_clients c ON c.id = ar.client_id
+       ${ENTITY_JOIN}
        WHERE ar.is_deleted = FALSE AND c.is_deleted = FALSE
          AND ar.year = $1 AND c.firm_id = ANY($2)
+         AND ${ENTITY_ENABLED_SQL}
        GROUP BY ar.status`,
       [year, firmIds],
     )
@@ -277,7 +290,9 @@ export const annualReviewService = {
       `SELECT DISTINCT ar.year
        FROM annual_reviews ar
        JOIN tax_clients c ON c.id = ar.client_id
+       ${ENTITY_JOIN}
        WHERE ar.is_deleted = FALSE AND c.is_deleted = FALSE AND c.firm_id = ANY($1)
+         AND ${ENTITY_ENABLED_SQL}
        ORDER BY ar.year DESC`,
       [firmIds],
     )
@@ -289,8 +304,10 @@ export const annualReviewService = {
       `SELECT COUNT(*)::INT AS n
        FROM annual_reviews ar
        JOIN tax_clients c ON c.id = ar.client_id
+       ${ENTITY_JOIN}
        WHERE ar.is_deleted = FALSE AND c.is_deleted = FALSE
          AND ar.year = $1 AND c.firm_id = ANY($2)
+         AND ${ENTITY_ENABLED_SQL}
          AND (${DUE_FILTER_SQL.overdue})`,
       [year, firmIds],
     )
