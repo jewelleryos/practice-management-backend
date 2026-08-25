@@ -152,6 +152,60 @@ export const updateTaxClientSchema = z.object({
   notes: z.array(noteSchema).optional(),
 })
 
+// ── CSV export / import ──
+
+// Query params for the CSV export: the SAME filters the list accepts, minus
+// pagination and sort (the export is always every matching row, sorted by name).
+// Client group and status still filter the export even though neither is a
+// column in the file.
+export const exportTaxClientsQuerySchema = z.object({
+  search: z.string().trim().min(1).optional(),
+  entity_type_id: z.string().trim().min(1).optional(),
+  client_group_id: z.string().trim().min(1).optional(),
+  software_id: z.string().trim().min(1).optional(),
+  firm_id: z.string().trim().min(1).optional(),
+  // An empty `status` means "All statuses" on the Clients list, so it is treated
+  // as no filter rather than as an invalid enum - a hand-built export URL of
+  // ?status= should export everything, not fail with a validation error.
+  status: z
+    .literal('')
+    .transform(() => undefined)
+    .or(statusEnum)
+    .optional(),
+})
+
+// The final gate on a validated CSV row, applied AFTER the CSV service's own
+// field checks have produced friendly per-column messages. It reuses the exact
+// field validators the Add client form goes through, so an import can never be
+// looser than the form - if the two ever drift, this fails loudly rather than
+// writing something the form would have rejected. Client group, assignee and
+// status are absent because the file cannot carry them.
+export const csvImportClientSchema = createTaxClientSchema.pick({
+  firm_id: true,
+  name: true,
+  is_company: true,
+  gender: true,
+  title: true,
+  dob_or_incorporation_date: true,
+  abn: true,
+  acn: true,
+  trading_name: true,
+  address_line: true,
+  locality: true,
+  state_code: true,
+  postcode: true,
+  email: true,
+  bank_account_name: true,
+  bank_account_prefix: true,
+  bank_account_number: true,
+  director_id: true,
+  software_id: true,
+}).extend({
+  // Required in the CSV even though the column is nullable in the database: the
+  // Add client form requires it, and the Annual Review feature depends on it.
+  entity_type_id: z.string().trim().min(1, taxClientMessages.ENTITY_TYPE_NOT_FOUND),
+})
+
 // Query params for the server-driven list. Values arrive as strings.
 export const listTaxClientsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

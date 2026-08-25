@@ -17,6 +17,10 @@ import type {
   RelationshipView,
   ServiceView,
   NoteView,
+  ExportTaxClientsQuery,
+  ExportRow,
+  ImportableClient,
+  ImportResult,
 } from '../types/tax-clients.types'
 
 export const taxClientService = {
@@ -374,6 +378,94 @@ export const taxClientService = {
     }
   },
 
+  // Insert a client and its children inside a transaction the CALLER owns, and
+  // return the new id. Extracted from create() so the CSV importer can put many
+  // clients in ONE transaction; create() still opens its own and behaves exactly
+  // as it always has. `importBatchId` is NULL for everything except a CSV import.
+  //
+  // Reference validation is NOT done here - the caller does it before opening the
+  // transaction (create() via assertCoreRefs / assertChildrenValid, the importer
+  // via the CSV service), so a rejected payload never holds a transaction open.
+  async insertClientWithin(
+    tx: PoolClient,
+    actingUser: AuthUser,
+    data: CreateTaxClientRequest,
+    importBatchId: string | null = null,
+  ): Promise<string> {
+    const inserted = await tx.query(
+      `INSERT INTO tax_clients (
+         firm_id, name, is_company, gender, title, entity_type_id,
+         dob_or_incorporation_date, abn, acn, trading_name,
+         address_line, locality, state, state_code, postcode,
+         bank_account_name, bank_account_prefix, bank_account_number,
+         director_id, client_group_id, software_id, assignee_id, status,
+         email, import_batch_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+       RETURNING id`,
+      [
+        data.firm_id,
+        data.name,
+        data.is_company,
+        data.gender ?? null,
+        data.title ?? null,
+        data.entity_type_id ?? null,
+        data.dob_or_incorporation_date ?? null,
+        data.abn ?? null,
+        data.acn ?? null,
+        data.trading_name ?? null,
+        data.address_line ?? null,
+        data.locality ?? null,
+        // State is stored as both the full name (derived) and the code.
+        australianStateName(data.state_code),
+        data.state_code ?? null,
+        data.postcode ?? null,
+        data.bank_account_name ?? null,
+        data.bank_account_prefix ?? null,
+        data.bank_account_number ?? null,
+        data.director_id ?? null,
+        data.client_group_id ?? null,
+        data.software_id ?? null,
+        data.assignee_id ?? null,
+        data.status,
+        data.email ?? null,
+        importBatchId,
+      ],
+    )
+    const clientId = inserted.rows[0].id as string
+
+    for (const rel of data.relationships) {
+      await tx.query(
+        `INSERT INTO tax_client_relationships (client_id, relation_type_id, related_client_id)
+         VALUES ($1, $2, $3)`,
+        [clientId, rel.relation_type_id, rel.related_client_id],
+      )
+    }
+    for (const svc of data.services) {
+      await tx.query(
+        `INSERT INTO tax_client_services (client_id, service_id, frequency, short_description, assignee_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [clientId, svc.service_id, svc.frequency, svc.short_description ?? null, svc.assignee_id ?? null],
+      )
+    }
+    // Auto-attach any `auto_added` services (e.g. a one-time service) that the
+    // user didn't already pick, so every new client has them without setup.
+    // Imported clients go through this identically.
+    await this.attachAutoAddedServices(
+      tx,
+      clientId,
+      data.services.map((s) => s.service_id),
+    )
+    for (const note of data.notes) {
+      await tx.query(
+        `INSERT INTO tax_client_notes (client_id, note_type_id, text, created_by)
+         VALUES ($1, $2, $3, $4)`,
+        [clientId, note.note_type_id, note.text, actingUser.id],
+      )
+    }
+
+    return clientId
+  },
+
   // ── CREATE (client + nested children, one transaction) ──
   async create(actingUser: AuthUser, data: CreateTaxClientRequest): Promise<TaxClientDetail> {
     await this.assertFirmAccessible(actingUser, data.firm_id)
@@ -383,75 +475,7 @@ export const taxClientService = {
     const client = await db.connect()
     try {
       await client.query('BEGIN')
-      const inserted = await client.query(
-        `INSERT INTO tax_clients (
-           firm_id, name, is_company, gender, title, entity_type_id,
-           dob_or_incorporation_date, abn, acn, trading_name,
-           address_line, locality, state, state_code, postcode,
-           bank_account_name, bank_account_prefix, bank_account_number,
-           director_id, client_group_id, software_id, assignee_id, status,
-           email
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
-         RETURNING id`,
-        [
-          data.firm_id,
-          data.name,
-          data.is_company,
-          data.gender ?? null,
-          data.title ?? null,
-          data.entity_type_id ?? null,
-          data.dob_or_incorporation_date ?? null,
-          data.abn ?? null,
-          data.acn ?? null,
-          data.trading_name ?? null,
-          data.address_line ?? null,
-          data.locality ?? null,
-          // State is stored as both the full name (derived) and the code.
-          australianStateName(data.state_code),
-          data.state_code ?? null,
-          data.postcode ?? null,
-          data.bank_account_name ?? null,
-          data.bank_account_prefix ?? null,
-          data.bank_account_number ?? null,
-          data.director_id ?? null,
-          data.client_group_id ?? null,
-          data.software_id ?? null,
-          data.assignee_id ?? null,
-          data.status,
-          data.email ?? null,
-        ],
-      )
-      const clientId = inserted.rows[0].id as string
-
-      for (const rel of data.relationships) {
-        await client.query(
-          `INSERT INTO tax_client_relationships (client_id, relation_type_id, related_client_id)
-           VALUES ($1, $2, $3)`,
-          [clientId, rel.relation_type_id, rel.related_client_id],
-        )
-      }
-      for (const svc of data.services) {
-        await client.query(
-          `INSERT INTO tax_client_services (client_id, service_id, frequency, short_description, assignee_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [clientId, svc.service_id, svc.frequency, svc.short_description ?? null, svc.assignee_id ?? null],
-        )
-      }
-      // Auto-attach any `auto_added` services (e.g. a one-time service) that the
-      // user didn't already pick, so every new client has them without setup.
-      await this.attachAutoAddedServices(
-        client,
-        clientId,
-        data.services.map((s) => s.service_id),
-      )
-      for (const note of data.notes) {
-        await client.query(
-          `INSERT INTO tax_client_notes (client_id, note_type_id, text, created_by)
-           VALUES ($1, $2, $3, $4)`,
-          [clientId, note.note_type_id, note.text, actingUser.id],
-        )
-      }
-
+      const clientId = await this.insertClientWithin(client, actingUser, data)
       await client.query('COMMIT')
 
       // Generate this client's annual review row now, so a newly added client shows
@@ -710,5 +734,136 @@ export const taxClientService = {
     } finally {
       client.release()
     }
+  },
+
+  // ── CSV EXPORT (read-only) ──
+  // Every client matching the CURRENT list filters, not "everything", so an
+  // export is the file version of what the user is looking at. Same firm scoping
+  // as list(); no pagination; sorted by name like the list's default.
+  //
+  // Client group, assignee and status are still FILTERS here even though none of
+  // them is a column in the file - you can export one group, or only inactive
+  // clients, and the file itself stays re-importable.
+  async exportRows(actingUser: AuthUser, q: ExportTaxClientsQuery): Promise<ExportRow[]> {
+    const firmIds = await this.accessibleFirmIds(actingUser.id)
+    if (firmIds.length === 0) return []
+
+    const params: any[] = [firmIds]
+    const where: string[] = ['c.is_deleted = FALSE', 'c.firm_id = ANY($1)']
+
+    if (q.firm_id) {
+      params.push(q.firm_id)
+      where.push(`c.firm_id = $${params.length}`)
+    }
+    if (q.entity_type_id) {
+      params.push(q.entity_type_id)
+      where.push(`c.entity_type_id = $${params.length}`)
+    }
+    if (q.client_group_id) {
+      params.push(q.client_group_id)
+      where.push(`c.client_group_id = $${params.length}`)
+    }
+    if (q.software_id) {
+      params.push(q.software_id)
+      where.push(`c.software_id = $${params.length}`)
+    }
+    if (q.status) {
+      params.push(q.status)
+      where.push(`c.status = $${params.length}`)
+    }
+    if (q.search) {
+      params.push(`%${q.search}%`)
+      where.push(`c.name ILIKE $${params.length}`)
+    }
+
+    const result = await db.query(
+      `SELECT f.name AS firm_name,
+              et.name AS entity_type_name,
+              sw.name AS software_name,
+              c.name, c.is_company, c.title, c.gender,
+              c.dob_or_incorporation_date,
+              c.trading_name, c.abn, c.acn, c.director_id,
+              c.address_line, c.locality, c.state_code, c.postcode, c.email,
+              c.bank_account_name, c.bank_account_prefix, c.bank_account_number
+       FROM tax_clients c
+       LEFT JOIN firms f ON f.id = c.firm_id
+       LEFT JOIN entity_types et ON et.id = c.entity_type_id
+       LEFT JOIN software sw ON sw.id = c.software_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY LOWER(c.name) ASC`,
+      params,
+    )
+    return result.rows as ExportRow[]
+  },
+
+  // ── CSV IMPORT (create only) ──
+  // Rows arrive already validated by the CSV service. Everything goes in ONE
+  // transaction: any failure on any row rolls the whole file back, so the user
+  // never has to work out which half of a file went in.
+  async importRows(actingUser: AuthUser, rows: ImportableClient[]): Promise<ImportResult> {
+    // Belt and braces. The CSV service only ever resolves a firm NAME to a firm
+    // this member can access, so this should be unreachable - but the check is
+    // cheap and the alternative is writing a client into someone else's firm.
+    const firmIds = await this.accessibleFirmIds(actingUser.id)
+    for (const row of rows) {
+      if (!firmIds.includes(row.firm_id)) {
+        throw new AppError(taxClientMessages.FIRM_NOT_ACCESSIBLE, HTTP_STATUS.FORBIDDEN)
+      }
+    }
+
+    const client = await db.connect()
+    const createdIds: string[] = []
+    let batchId = ''
+    try {
+      await client.query('BEGIN')
+
+      // One id for the whole file - the handle that makes a mistaken import
+      // undoable with a single UPDATE. generate_ulid() is the same DB function
+      // every table's primary key already defaults to.
+      const batch = await client.query(`SELECT generate_ulid() AS id`)
+      batchId = batch.rows[0].id as string
+
+      for (const row of rows) {
+        // Imported clients go through the SAME insert Add client uses, so they
+        // pick up `auto_added` services identically. The file cannot carry the
+        // Classification fields, so every row is created ungrouped, unassigned
+        // and Active - and has no relationships, services or notes of its own.
+        const id = await this.insertClientWithin(
+          client,
+          actingUser,
+          {
+            ...row,
+            client_group_id: null,
+            assignee_id: null,
+            status: 'active',
+            relationships: [],
+            services: [],
+            notes: [],
+          },
+          batchId,
+        )
+        createdIds.push(id)
+      }
+
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+
+    // AFTER the commit, and each one wrapped, exactly as create() does: the
+    // clients are already saved, and a broken annual review must never turn a
+    // successful import into an error. Sunday's sweep picks up anything missed.
+    for (const id of createdIds) {
+      try {
+        await annualReviewService.syncClient(id)
+      } catch (err) {
+        console.error('[annual-review] syncClient after client import failed', err)
+      }
+    }
+
+    return { imported: createdIds.length, batch_id: batchId }
   },
 }

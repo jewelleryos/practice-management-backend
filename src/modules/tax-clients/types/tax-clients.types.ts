@@ -212,3 +212,102 @@ export interface TaxClientDetail {
   // (VIEW_ALL → all; VIEW_ASSIGNED only → tasks they prepare/review; neither → 0).
   pending_task_count: number
 }
+
+// ── CSV export / import ──
+// The file is 23 columns; the wizard's whole Classification section (client
+// group, assignee, status) is deliberately NOT in it, so an imported client is
+// always created ungrouped, unassigned and Active and is classified in the app
+// afterwards. See docs/superpowers/specs/2026-08-20-client-csv-import-export-design.md.
+
+// Query params for the export - the same filters the list accepts, minus
+// pagination and sort. Group / assignee / status still FILTER the export even
+// though they are not columns in it.
+export interface ExportTaxClientsQuery {
+  search?: string
+  entity_type_id?: string
+  client_group_id?: string
+  software_id?: string
+  firm_id?: string
+  status?: ClientStatus
+}
+
+// One row as read out of the database for the export, already flattened to the
+// names (not ids) the file carries. `dob_or_incorporation_date` is the raw
+// 'YYYY-MM-DD' string (pg returns DATE verbatim - see lib/db.ts).
+export interface ExportRow {
+  firm_name: string | null
+  entity_type_name: string | null
+  software_name: string | null
+  name: string
+  is_company: boolean
+  title: string | null
+  gender: string | null
+  dob_or_incorporation_date: string | null
+  trading_name: string | null
+  abn: string | null
+  acn: string | null
+  director_id: string | null
+  address_line: string | null
+  locality: string | null
+  state_code: string | null
+  postcode: string | null
+  email: string | null
+  bank_account_name: string | null
+  bank_account_prefix: string | null
+  bank_account_number: string | null
+}
+
+// A validated row, ready to insert. Shaped to what insertClientWithin needs;
+// client_group_id / assignee_id / status are not here because the file cannot
+// carry them (they are set to NULL / NULL / 'active' at insert time).
+export interface ImportableClient {
+  firm_id: string
+  name: string
+  is_company: boolean
+  gender: string | null
+  title: string | null
+  entity_type_id: string
+  software_id: string | null
+  dob_or_incorporation_date: string | null
+  abn: string | null
+  acn: string | null
+  trading_name: string | null
+  address_line: string | null
+  locality: string | null
+  state_code: string | null
+  postcode: string | null
+  email: string | null
+  bank_account_name: string | null
+  bank_account_prefix: string | null
+  bank_account_number: string | null
+  director_id: string | null
+}
+
+// One row in the preview table the user reviews before committing.
+export interface ImportPreviewRow {
+  // 1-based DATA row: the header is not counted, so this is the line number the
+  // user sees in Excel minus one. Shown in the preview table.
+  row_number: number
+  name: string
+  firm: string
+  entity_type: string
+  errors: string[] // empty = this row is ok
+}
+
+export interface ImportPreview {
+  // File-level problems (header, size, row count). When non-empty the row table
+  // is not shown at all - there is nothing meaningful to show.
+  file_errors: string[]
+  rows: ImportPreviewRow[]
+  total_rows: number
+  error_rows: number
+  // True only when there is nothing wrong anywhere. The Import button is enabled
+  // on exactly this.
+  can_import: boolean
+}
+
+export interface ImportResult {
+  imported: number
+  // The ULID stamped on every client this import created - the undo handle.
+  batch_id: string
+}

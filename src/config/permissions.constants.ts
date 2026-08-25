@@ -135,6 +135,12 @@ export const PERMISSIONS = {
     // CREATE/READ/UPDATE split (letters are immutable, notes add-only). Part of the
     // TAX_CLIENT block (not its own module) since it lives inside the client profile.
     MANAGE_ENGAGEMENT_LETTERS: 1006,
+    // CSV export / import of clients (the Import & export page on the client list).
+    // Two separate codes because they are genuinely different risks: EXPORT reads
+    // the whole visible client list out to a file, IMPORT writes new clients in
+    // bulk. EXPORT requires READ, IMPORT requires CREATE.
+    EXPORT: 1007,
+    IMPORT: 1008,
   },
   // Tax-practice tasks — work done for a tax client, per service, per period.
   // Department-scoped (like TAX_CLIENT); mortgage tasks get their own
@@ -226,6 +232,8 @@ export type PermissionAction =
   | 'ACCESS'
   | 'MANAGE_LETTERHEAD'
   | 'MANAGE_ENGAGEMENT_LETTERS'
+  | 'EXPORT'
+  | 'IMPORT'
 
 export interface PermissionDef {
   code: number
@@ -403,6 +411,8 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.TAX_CLIENT.DELETE, action: 'DELETE', label: 'Delete clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.VIEW_SENSITIVE_NOTES, action: 'VIEW_SENSITIVE_NOTES', label: 'View sensitive notes', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS, action: 'MANAGE_ENGAGEMENT_LETTERS', label: 'Manage engagement letters', requires: [PERMISSIONS.TAX_CLIENT.READ] },
+      { code: PERMISSIONS.TAX_CLIENT.EXPORT, action: 'EXPORT', label: 'Export clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
+      { code: PERMISSIONS.TAX_CLIENT.IMPORT, action: 'IMPORT', label: 'Import clients', requires: [PERMISSIONS.TAX_CLIENT.CREATE] },
     ],
   },
   {
