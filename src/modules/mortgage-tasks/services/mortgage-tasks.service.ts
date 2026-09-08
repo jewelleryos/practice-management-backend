@@ -116,15 +116,15 @@ export const mortgageTaskService = {
     }
     if (q.firm_id) {
       params.push(q.firm_id)
-      where.push(`t.firm_id = $${params.length}`)
+      where.push(`t.firm_id = ANY($${params.length})`)
     }
     if (q.status) {
       params.push(q.status)
-      where.push(`t.status = $${params.length}`)
+      where.push(`t.status = ANY($${params.length})`)
     }
     if (q.loan_type_id) {
       params.push(q.loan_type_id)
-      where.push(`t.loan_type_id = $${params.length}`)
+      where.push(`t.loan_type_id = ANY($${params.length})`)
     }
     if (q.follower_id) {
       params.push(q.follower_id)

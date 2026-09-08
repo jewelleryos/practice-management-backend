@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvOf } from '../../../utils/query-filters'
 import { personalTaskMessages } from './tax-personal-tasks.messages'
 import { TASK_STATUS_VALUES, type TaskStatus } from '../../../config/task-statuses.constants'
 
@@ -71,7 +72,9 @@ export const updateNoteSchema = z.object({
 export const listPersonalTasksQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  status: statusEnum.optional(),
+  // Multi-value on the LIST only - a task still has exactly one status, so the
+  // create / update / change-status bodies keep their single enum.
+  status: csvOf(statusEnum),
   // Narrow to tasks a specific member follows.
   follower_id: z.string().trim().min(1).optional(),
   // Free-text over the title. '' → omitted.

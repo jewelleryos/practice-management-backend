@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvOf } from '../../../utils/query-filters'
 import { mortgageTaskMessages } from './mortgage-tasks.messages'
 import {
   MORTGAGE_TASK_STATUS_VALUES,
@@ -84,9 +85,9 @@ export const updateMortgageTaskCommentSchema = z.object({
 export const listMortgageTasksQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  firm_id: z.string().trim().min(1).optional(),
-  status: statusEnum.optional(),
-  loan_type_id: z.string().trim().min(1).optional(),
+  firm_id: csvOf(z.string().trim().min(1)),
+  status: csvOf(statusEnum),
+  loan_type_id: csvOf(z.string().trim().min(1)),
   follower_id: z.string().trim().min(1).optional(),
   search: z
     .string()

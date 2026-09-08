@@ -30,9 +30,11 @@ export interface UpdateNoteRequest {
 }
 
 export interface ListPersonalTasksQuery {
+  // Multi-value filters, parsed from one comma-separated parameter by csvOf.
+  // undefined (never an empty array) means "no filter".
   page: number
   pageSize: number
-  status?: TaskStatus
+  status?: TaskStatus[]
   follower_id?: string
   search?: string
   sort_by: 'created_at' | 'due_date'

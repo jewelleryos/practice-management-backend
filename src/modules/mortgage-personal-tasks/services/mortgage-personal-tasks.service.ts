@@ -78,7 +78,7 @@ export const mortgagePersonalTaskService = {
 
     if (q.status) {
       params.push(q.status)
-      where.push(`t.status = $${params.length}`)
+      where.push(`t.status = ANY($${params.length})`)
     }
     if (q.follower_id) {
       params.push(q.follower_id)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvOf } from '../../../utils/query-filters'
 import {
   ANNUAL_REVIEW_STATUSES,
   ANNUAL_REVIEW_DUE_FILTERS,
@@ -9,8 +10,10 @@ import { annualReviewMessages } from './annual-reviews.messages'
 // the default is the current Australian calendar year, which needs a database round
 // trip to determine, so the service fills it in.
 export const listAnnualReviewsSchema = z.object({
+  // `year` and `due` stay SINGLE on purpose: a year is one period, and the due
+  // window is a mutually exclusive range. Only `status` is a set.
   year: z.coerce.number().int().min(2000).max(2100).optional(),
-  status: z.enum(ANNUAL_REVIEW_STATUSES).optional(),
+  status: csvOf(z.enum(ANNUAL_REVIEW_STATUSES)),
   // Due-date window, relative to today in the firm's timezone.
   due: z.enum(ANNUAL_REVIEW_DUE_FILTERS).optional(),
   search: z.string().trim().max(200).optional(),

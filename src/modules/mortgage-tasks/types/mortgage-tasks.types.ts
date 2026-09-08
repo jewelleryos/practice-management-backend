@@ -48,11 +48,13 @@ export interface UpdateMortgageTaskCommentRequest {
 }
 
 export interface ListMortgageTasksQuery {
+  // Multi-value filters, parsed from one comma-separated parameter by csvOf.
+  // undefined (never an empty array) means "no filter".
   page: number
   pageSize: number
-  firm_id?: string
-  status?: MortgageTaskStatus
-  loan_type_id?: string
+  firm_id?: string[]
+  status?: MortgageTaskStatus[]
+  loan_type_id?: string[]
   follower_id?: string
   search?: string
   sort_by: 'created_at'

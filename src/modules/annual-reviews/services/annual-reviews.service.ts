@@ -224,7 +224,7 @@ export const annualReviewService = {
     let i = 3
 
     if (q.status) {
-      where.push(`ar.status = $${i++}`)
+      where.push(`ar.status = ANY($${i++})`)
       values.push(q.status)
     }
     // Due window. The fragment is an internal literal keyed by a Zod-validated
