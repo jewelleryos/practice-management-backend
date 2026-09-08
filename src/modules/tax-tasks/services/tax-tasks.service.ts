@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { db } from '../../../lib/db'
 import { taxTaskMessages } from '../config/tax-tasks.messages'
 import { AppError } from '../../../utils/app-error'
@@ -183,8 +184,15 @@ export const taxTaskService = {
     const total = countResult.rows[0].total as number
 
     // Allowlisted sort column + direction (never interpolate raw input).
+    // 'board' is the manually arranged order: dragged cards sort by their position
+    // and everything else falls back to the board's normal order, so a column
+    // nobody has arranged looks exactly as it did before this feature existed.
     const sortCol = q.sort_by === 'due_date' ? 't.due_date' : 't.created_at'
     const sortDir = q.sort_dir === 'asc' ? 'ASC' : 'DESC'
+    const orderBySql =
+      q.sort_by === 'board'
+        ? 't.board_position ASC NULLS LAST, t.due_date ASC NULLS LAST, t.created_at DESC, t.id DESC'
+        : `${sortCol} ${sortDir} NULLS LAST, t.created_at DESC`
     const offset = (q.page - 1) * q.pageSize
 
     const rowsResult = await db.query(
@@ -202,7 +210,7 @@ export const taxTaskService = {
               t.created_at
        ${DETAIL_JOINS}
        WHERE ${whereSql}
-       ORDER BY ${sortCol} ${sortDir} NULLS LAST, t.created_at DESC
+       ORDER BY ${orderBySql}
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, q.pageSize, offset],
     )
@@ -1250,4 +1258,19 @@ export const taxTaskService = {
       tx.release()
     }
   },
+
+  // ── BOARD REORDER ──
+  // Move a card within its own status column. A cross-column drag still goes
+  // through changeStatus first (which owns the reviewer-only and checklist rules);
+  // this only decides where the card sits inside whatever column it ends up in.
+  async reorderOnBoard(
+    actingUser: AuthUser,
+    id: string,
+    afterId: string | null,
+  ): Promise<{ id: string; board_position: number }> {
+    const row = await this.loadVisibleRow(actingUser, id)
+    const position = await repositionOnBoard(BOARD_ORDER_TABLES.taxTasks, id, row.status, afterId)
+    return { id, board_position: position }
+  },
+
 }

@@ -151,7 +151,8 @@ export interface ListTaxTasksQuery {
   preparer_id?: string[]
   reviewer_id?: string[]
   search?: string
-  sort_by: 'created_at' | 'due_date'
+  // 'board' = the manually arranged card order (board view only).
+  sort_by: 'created_at' | 'due_date' | 'board'
   sort_dir: 'asc' | 'desc'
 }
 

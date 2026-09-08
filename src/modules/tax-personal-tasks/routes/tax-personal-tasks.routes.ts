@@ -9,6 +9,7 @@ import {
   createNoteSchema,
   updateNoteSchema,
   listPersonalTasksQuerySchema,
+  boardPositionSchema,
 } from '../config/tax-personal-tasks.schema'
 import { successResponse } from '../../../utils/response'
 import { errorHandler } from '../../../utils/error-handler'
@@ -74,6 +75,26 @@ taxPersonalTaskRoutes.get('/:id', authWithPermission(ACCESS), async (c) => {
 
 // PATCH /api/tax-personal-tasks/:id/status — status only (board drag). Before
 // the general /:id patch so the static segment wins.
+// PATCH /api/tax-personal-tasks/:id/board-position — move a card within its status
+// column. Static segment, so it must sit above the general /:id patch.
+taxPersonalTaskRoutes.patch('/:id/board-position', authWithPermission(ACCESS), async (c) => {
+  try {
+    const data = boardPositionSchema.parse(await c.req.json())
+    const result = await personalTaskService.reorderOnBoard(
+      c.get('user'),
+      c.req.param('id')!,
+      data.after_id,
+    )
+    return successResponse<{ id: string; board_position: number }>(
+      c,
+      personalTaskMessages.REORDERED,
+      result,
+    )
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
 taxPersonalTaskRoutes.patch('/:id/status', authWithPermission(ACCESS), async (c) => {
   try {
     const { status } = updatePersonalTaskStatusSchema.parse(await c.req.json())

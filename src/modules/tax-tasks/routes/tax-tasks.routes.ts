@@ -16,6 +16,7 @@ import {
   updateTaskCommentSchema,
   workStatusGridQuerySchema,
   boardChangeWorkStatusSchema,
+  boardPositionSchema,
 } from '../config/tax-tasks.schema'
 import { successResponse } from '../../../utils/response'
 import { errorHandler } from '../../../utils/error-handler'
@@ -221,6 +222,28 @@ taxTaskRoutes.post('/general', authWithPermission(PERMISSIONS.TAX_TASK.CREATE), 
 
 // PATCH /api/tax-tasks/:id/status — change lifecycle status. Anyone who can see
 // the task; → completed is reviewer-only and requires all required items done.
+// PATCH /api/tax-tasks/:id/board-position — move a card within its status column.
+// Same gate as the status PATCH: login only, with visibility enforced in the
+// service. Reordering is strictly weaker than the status change already allowed
+// here, so it needs no permission of its own.
+taxTaskRoutes.patch('/:id/board-position', authWithPermission(), async (c) => {
+  try {
+    const data = boardPositionSchema.parse(await c.req.json())
+    const result = await taxTaskService.reorderOnBoard(
+      c.get('user'),
+      c.req.param('id')!,
+      data.after_id,
+    )
+    return successResponse<{ id: string; board_position: number }>(
+      c,
+      taxTaskMessages.REORDERED,
+      result,
+    )
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
 taxTaskRoutes.patch('/:id/status', authWithPermission(), async (c) => {
   try {
     const { status } = updateTaxTaskStatusSchema.parse(await c.req.json())

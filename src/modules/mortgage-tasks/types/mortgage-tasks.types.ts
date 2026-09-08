@@ -57,7 +57,8 @@ export interface ListMortgageTasksQuery {
   loan_type_id?: string[]
   follower_id?: string
   search?: string
-  sort_by: 'created_at'
+  // 'board' = the manually arranged card order (board view only).
+  sort_by: 'created_at' | 'board'
   sort_dir: 'asc' | 'desc'
 }
 

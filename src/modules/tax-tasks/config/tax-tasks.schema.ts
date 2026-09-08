@@ -211,7 +211,10 @@ export const listTaxTasksQuerySchema = z.object({
     .max(200)
     .transform((v) => (v === '' ? undefined : v))
     .optional(),
-  sort_by: z.enum(['created_at', 'due_date']).default('created_at'),
+  // 'board' is the manual card order a member arranged by dragging (board view
+  // only). It is a separate sort rather than the default so the LIST view's own
+  // sort is untouched - a manual order must not silently override "by due date".
+  sort_by: z.enum(['created_at', 'due_date', 'board']).default('created_at'),
   sort_dir: z.enum(['asc', 'desc']).default('desc'),
 })
 
@@ -223,4 +226,12 @@ export const workStatusGridQuerySchema = z.object({
   frequency: frequencyEnum,
   financial_year_id: z.string().trim().min(1).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
+})
+
+// Board reorder: place this card immediately after `after_id` within its own status
+// column, or at the top when null. The new position is computed on the SERVER from
+// the neighbours - a board column is a paginated infinite list, so the client holds
+// only part of it and cannot restate the whole order.
+export const boardPositionSchema = z.object({
+  after_id: z.string().trim().min(1).nullable(),
 })

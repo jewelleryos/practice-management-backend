@@ -4,6 +4,7 @@ import { mortgageTaskCommentService } from '../services/mortgage-task-comments.s
 import { mortgageTaskMessages } from '../config/mortgage-tasks.messages'
 import {
   createMortgageTaskSchema,
+  boardPositionSchema,
   updateMortgageTaskSchema,
   changeMortgageTaskStatusSchema,
   setMortgageTaskFollowersSchema,
@@ -101,6 +102,29 @@ mortgageTaskRoutes.get(
 )
 
 // PATCH /api/mortgage-tasks/:id/status — change status (writes a status-change note)
+// PATCH /api/mortgage-tasks/:id/board-position — move a card within its status column.
+mortgageTaskRoutes.patch(
+  '/:id/board-position',
+  authWithPermission(PERMISSIONS.MORTGAGE_TASK.VIEW),
+  async (c) => {
+    try {
+      const data = boardPositionSchema.parse(await c.req.json())
+      const result = await mortgageTaskService.reorderOnBoard(
+        c.get('user'),
+        c.req.param('id')!,
+        data.after_id,
+      )
+      return successResponse<{ id: string; board_position: number }>(
+        c,
+        mortgageTaskMessages.REORDERED,
+        result,
+      )
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
 mortgageTaskRoutes.patch(
   '/:id/status',
   authWithPermission(PERMISSIONS.MORTGAGE_TASK.VIEW),

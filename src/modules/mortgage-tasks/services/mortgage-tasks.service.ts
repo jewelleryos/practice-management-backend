@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { db } from '../../../lib/db'
 import { mortgageTaskMessages } from '../config/mortgage-tasks.messages'
 import { AppError } from '../../../utils/app-error'
@@ -140,6 +141,13 @@ export const mortgageTaskService = {
 
     const whereSql = where.join(' AND ')
     const orderDir = q.sort_dir === 'asc' ? 'ASC' : 'DESC'
+    // 'board' is the manually arranged order: dragged cards sort by their position
+    // and everything else falls back to the normal order, so a column nobody has
+    // arranged looks exactly as it did before this feature existed.
+    const orderBySql =
+      q.sort_by === 'board'
+        ? 't.board_position ASC NULLS LAST, t.created_at DESC, t.id DESC'
+        : `t.created_at ${orderDir} NULLS LAST, t.id DESC`
 
     const countResult = await db.query(
       `SELECT COUNT(*)::int AS total ${ROW_JOINS} WHERE ${whereSql}`,
@@ -152,7 +160,7 @@ export const mortgageTaskService = {
     const listResult = await db.query(
       `SELECT ${ROW_SELECT} ${ROW_JOINS}
        WHERE ${whereSql}
-       ORDER BY t.created_at ${orderDir} NULLS LAST, t.id DESC
+       ORDER BY ${orderBySql}
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
       listParams,
     )
@@ -584,4 +592,23 @@ export const mortgageTaskService = {
     )
     return { items: result.rows }
   },
+
+  // ── BOARD REORDER ──
+  // Move a card within its own status column. loadVisibleRow already returns the
+  // status, and enforces firm scope plus the creator/follower rule.
+  async reorderOnBoard(
+    actingUser: AuthUser,
+    id: string,
+    afterId: string | null,
+  ): Promise<{ id: string; board_position: number }> {
+    const row = await this.loadVisibleRow(actingUser, id)
+    const position = await repositionOnBoard(
+      BOARD_ORDER_TABLES.mortgageTasks,
+      id,
+      row.status,
+      afterId,
+    )
+    return { id, board_position: position }
+  },
+
 }
