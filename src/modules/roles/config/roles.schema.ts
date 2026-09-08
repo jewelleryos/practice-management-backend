@@ -1,10 +1,13 @@
 import { z } from 'zod'
 import { roleMessages } from './roles.messages'
-import { ALL_PERMISSION_CODES } from '../../../config/permissions.constants'
+import { ACCEPTED_PERMISSION_CODES } from '../../../config/permissions.constants'
 
-const VALID_CODES = new Set(ALL_PERMISSION_CODES)
+const VALID_CODES = new Set(ACCEPTED_PERMISSION_CODES)
 
-// Every code in the bundle must be a real, currently-defined permission.
+// Every code in the bundle must be one the registry knows about. That includes
+// RETIRED codes: a role saved from the picker echoes back whatever it was loaded
+// with, so rejecting a retired code would make any role still carrying one
+// impossible to edit. Retired codes grant nothing.
 const permissionsSchema = z
   .array(z.number().int())
   .refine((codes) => codes.every((c) => VALID_CODES.has(c)), {

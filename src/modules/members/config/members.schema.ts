@@ -1,16 +1,17 @@
 import { z } from 'zod'
 import { memberMessages } from './members.messages'
 import { ALL_DEPARTMENT_CODES, type DepartmentCode } from '../../../config/departments.constants'
-import { ALL_PERMISSION_CODES } from '../../../config/permissions.constants'
+import { ACCEPTED_PERMISSION_CODES } from '../../../config/permissions.constants'
 
 const departmentEnum = z.enum(ALL_DEPARTMENT_CODES as [DepartmentCode, ...DepartmentCode[]], {
   errorMap: () => ({ message: memberMessages.INVALID_DEPARTMENTS }),
 })
 
-// Array of permission codes — every code must exist in the registry.
+// Array of permission codes — every code must exist in the registry. Retired
+// codes are accepted (they may still sit in a member's overrides) but grant nothing.
 const permissionArray = z
   .array(z.number().int())
-  .refine((codes) => codes.every((code) => ALL_PERMISSION_CODES.includes(code)), {
+  .refine((codes) => codes.every((code) => ACCEPTED_PERMISSION_CODES.includes(code)), {
     message: memberMessages.INVALID_PERMISSIONS,
   })
 

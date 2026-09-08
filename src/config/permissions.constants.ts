@@ -126,7 +126,12 @@ export const PERMISSIONS = {
     CREATE: 1001,
     READ: 1002,
     UPDATE: 1003,
-    DELETE: 1004,
+    // 1004 was the original DELETE code. It was defined and SEEDED into three roles
+    // by migration 008 years before any delete route existed, so wiring the route to
+    // it would have handed cascade-delete to Partner/Director, Accountant/Bookkeeper
+    // and Admin/Support the moment it deployed - on live client data, with nobody
+    // choosing it. 1004 is therefore RETIRED (see RETIRED_PERMISSION_CODES) and the
+    // real delete gate is 1009 below, which is on no role. Never reuse 1004.
     // Gate for viewing client notes whose note-type is marked sensitive. Without
     // it, sensitive notes are excluded from responses entirely (never masked).
     VIEW_SENSITIVE_NOTES: 1005,
@@ -141,6 +146,10 @@ export const PERMISSIONS = {
     // bulk. EXPORT requires READ, IMPORT requires CREATE.
     EXPORT: 1007,
     IMPORT: 1008,
+    // Cascading soft delete of a client and everything it owns. Deliberately a NEW
+    // code rather than the seeded 1004 - see the note above. On no seeded role, so
+    // client delete ships dormant and is enabled per role after deploy.
+    DELETE: 1009,
   },
   // Tax-practice tasks — work done for a tax client, per service, per period.
   // Department-scoped (like TAX_CLIENT); mortgage tasks get their own
@@ -414,11 +423,11 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.TAX_CLIENT.CREATE, action: 'CREATE', label: 'Create clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.READ, action: 'READ', label: 'View clients', requires: [] },
       { code: PERMISSIONS.TAX_CLIENT.UPDATE, action: 'UPDATE', label: 'Edit clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
-      { code: PERMISSIONS.TAX_CLIENT.DELETE, action: 'DELETE', label: 'Delete clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.VIEW_SENSITIVE_NOTES, action: 'VIEW_SENSITIVE_NOTES', label: 'View sensitive notes', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.MANAGE_ENGAGEMENT_LETTERS, action: 'MANAGE_ENGAGEMENT_LETTERS', label: 'Manage engagement letters', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.EXPORT, action: 'EXPORT', label: 'Export clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
       { code: PERMISSIONS.TAX_CLIENT.IMPORT, action: 'IMPORT', label: 'Import clients', requires: [PERMISSIONS.TAX_CLIENT.CREATE] },
+      { code: PERMISSIONS.TAX_CLIENT.DELETE, action: 'DELETE', label: 'Delete clients', requires: [PERMISSIONS.TAX_CLIENT.READ] },
     ],
   },
   {
@@ -527,6 +536,22 @@ export const PERMISSION_MODULES: PermissionModule[] = [
 export const ALL_PERMISSION_CODES: number[] = PERMISSION_MODULES.flatMap((m) =>
   m.permissions.map((p) => p.code)
 )
+
+// Codes that were once real and may still be sitting in a role's `permissions`
+// array or a member's overrides in the database, but grant nothing and are no
+// longer offered in the picker. They must stay ACCEPTED by the write validators,
+// otherwise saving one of those rows would fail validation on a code the user
+// cannot even see to untick. Never reuse a number listed here.
+//   1004 - the original TAX_CLIENT.DELETE, seeded by migration 008 and never wired
+//          to a route; replaced by 1009 so client delete could ship dormant.
+export const RETIRED_PERMISSION_CODES: number[] = [1004]
+
+// What a write is allowed to contain: everything currently offered, plus the
+// retired codes above. Only ALL_PERMISSION_CODES grants anything.
+export const ACCEPTED_PERMISSION_CODES: number[] = [
+  ...ALL_PERMISSION_CODES,
+  ...RETIRED_PERMISSION_CODES,
+]
 
 // code → its department (null = global). Used to gate a member's effective
 // permissions by their department access: a permission only applies if it is
