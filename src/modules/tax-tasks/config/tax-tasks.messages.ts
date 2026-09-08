@@ -5,6 +5,7 @@ export const taxTaskMessages = {
   CREATED: 'Task created successfully',
   STATUS_UPDATED: 'Task status updated successfully',
   REASSIGNED: 'Task assignment updated successfully',
+  DELETED: 'Task deleted successfully',
   CHECKLIST_UPDATED: 'Checklist updated successfully',
   NOT_FOUND: 'Task not found',
 

@@ -184,6 +184,17 @@ taxTaskRoutes.get('/:id', authWithPermission(), async (c) => {
   }
 })
 
+// DELETE /api/tax-tasks/:id — soft-delete a task and its comments. Gated by
+// TAX_TASK.DELETE; the service also requires the caller can see the task.
+taxTaskRoutes.delete('/:id', authWithPermission(PERMISSIONS.TAX_TASK.DELETE), async (c) => {
+  try {
+    const result = await taxTaskService.remove(c.get('user'), c.req.param('id')!)
+    return successResponse<{ id: string }>(c, taxTaskMessages.DELETED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
 // POST /api/tax-tasks — create a task (checklist snapshotted from the service).
 taxTaskRoutes.post('/', authWithPermission(PERMISSIONS.TAX_TASK.CREATE), async (c) => {
   try {

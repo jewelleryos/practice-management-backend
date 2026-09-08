@@ -1212,4 +1212,42 @@ export const taxTaskService = {
     }
     return this.writeResult(actingUser, id)
   },
+
+  // ── DELETE (soft: the task and its comments) ──
+  // The route gates on TAX_TASK.DELETE; loadVisibleRow then applies firm scope and
+  // VIEW_ALL / VIEW_ASSIGNED, so the effective rule is "delete a task you are
+  // already allowed to see". That follows this module's existing design, where
+  // mutation rights come from visibility rather than a per-action code.
+  //
+  // The task_deleted event is written INSIDE the transaction, so the event and its
+  // cause commit together. tax_task_activity is append-only (migration 025) - the
+  // task's history, including this row, is never removed.
+  async remove(actingUser: AuthUser, id: string): Promise<{ id: string }> {
+    await this.loadVisibleRow(actingUser, id) // 404s if missing / deleted / not visible
+
+    const tx = await db.connect()
+    try {
+      await tx.query('BEGIN')
+      await tx.query(
+        `UPDATE tax_task_comments
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE task_id = $1 AND is_deleted = FALSE`,
+        [id, actingUser.id],
+      )
+      await tx.query(
+        `UPDATE tax_tasks
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE id = $1 AND is_deleted = FALSE`,
+        [id, actingUser.id],
+      )
+      await this.logActivity(tx, id, actingUser.id, TASK_ACTIVITY_ACTIONS.TASK_DELETED)
+      await tx.query('COMMIT')
+      return { id }
+    } catch (error) {
+      await tx.query('ROLLBACK')
+      throw error
+    } finally {
+      tx.release()
+    }
+  },
 }
