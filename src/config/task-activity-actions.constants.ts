@@ -15,9 +15,11 @@
 //   REVIEWER_CHANGED       -> { from, to, from_name, to_name }  (member ids + names, or null)
 //   CHECKLIST_ITEM_CHECKED -> { item_id, heading }
 //   COMMENT_ADDED          -> { comment_id }
+//   TASK_DELETED           -> {}                      (no detail; who + when is on the row)
 
 export const TASK_ACTIVITY_ACTIONS = {
   TASK_CREATED: 'task_created',
+  TASK_DELETED: 'task_deleted',
   STATUS_CHANGED: 'status_changed',
   WORK_STATUS_CHANGED: 'work_status_changed',
   PRIORITY_CHANGED: 'priority_changed',

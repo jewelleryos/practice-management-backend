@@ -156,6 +156,12 @@ export const PERMISSIONS = {
     VIEW_ALL: 1102,
     VIEW_ASSIGNED: 1103,
     VIEW_ACTIVITY: 1104,
+    // Soft-delete a task and its comments. Independent of the view codes like
+    // everything else in this block: `requires` is an AND list and cannot express
+    // "VIEW_ALL or VIEW_ASSIGNED". The route gates on this code and the service
+    // then loads the row through loadVisibleRow, so the effective rule is "delete
+    // a task you are already allowed to see". Added to no seeded role.
+    DELETE: 1105,
   },
   // Work Status board (tax_practice) — the service-wise task-status grid (status
   // per client across periods). Its OWN view-only permission, deliberately SEPARATE
@@ -432,6 +438,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.TAX_TASK.VIEW_ALL, action: 'VIEW_ALL', label: 'View all tasks', requires: [] },
       { code: PERMISSIONS.TAX_TASK.VIEW_ASSIGNED, action: 'VIEW_ASSIGNED', label: 'View assigned tasks', requires: [] },
       { code: PERMISSIONS.TAX_TASK.VIEW_ACTIVITY, action: 'VIEW_ACTIVITY', label: 'View task activity log', requires: [] },
+      { code: PERMISSIONS.TAX_TASK.DELETE, action: 'DELETE', label: 'Delete tasks', requires: [] },
     ],
   },
   {
