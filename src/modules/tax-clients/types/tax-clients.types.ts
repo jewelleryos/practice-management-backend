@@ -101,11 +101,13 @@ export interface ListTaxClientsQuery {
   page: number
   pageSize: number
   search?: string
-  entity_type_id?: string
-  client_group_id?: string
-  software_id?: string
-  firm_id?: string
-  status?: ClientStatus
+  // Multi-value filters, parsed from one comma-separated parameter by csvOf.
+  // undefined (never an empty array) means "no filter".
+  entity_type_id?: string[]
+  client_group_id?: string[]
+  software_id?: string[]
+  firm_id?: string[]
+  status?: ClientStatus[]
   sort_by: 'name' | 'created_at'
   sort_dir: 'asc' | 'desc'
 }
@@ -224,11 +226,13 @@ export interface TaxClientDetail {
 // though they are not columns in it.
 export interface ExportTaxClientsQuery {
   search?: string
-  entity_type_id?: string
-  client_group_id?: string
-  software_id?: string
-  firm_id?: string
-  status?: ClientStatus
+  // Multi-value, exactly as ListTaxClientsQuery above - the export must apply the
+  // same filters as the list it was launched from.
+  entity_type_id?: string[]
+  client_group_id?: string[]
+  software_id?: string[]
+  firm_id?: string[]
+  status?: ClientStatus[]
 }
 
 // One row as read out of the database for the export, already flattened to the

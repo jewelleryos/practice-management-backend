@@ -46,27 +46,29 @@ export const taxClientService = {
     }
 
     const params: any[] = [firmIds]
+    // Filters are multi-value: `= ANY($n)` with a string[] param. csvOf never
+    // yields an empty array, so a falsy check still means "no filter".
     const where: string[] = ['c.is_deleted = FALSE', 'c.firm_id = ANY($1)']
 
     if (q.firm_id) {
       params.push(q.firm_id)
-      where.push(`c.firm_id = $${params.length}`)
+      where.push(`c.firm_id = ANY($${params.length})`)
     }
     if (q.entity_type_id) {
       params.push(q.entity_type_id)
-      where.push(`c.entity_type_id = $${params.length}`)
+      where.push(`c.entity_type_id = ANY($${params.length})`)
     }
     if (q.client_group_id) {
       params.push(q.client_group_id)
-      where.push(`c.client_group_id = $${params.length}`)
+      where.push(`c.client_group_id = ANY($${params.length})`)
     }
     if (q.software_id) {
       params.push(q.software_id)
-      where.push(`c.software_id = $${params.length}`)
+      where.push(`c.software_id = ANY($${params.length})`)
     }
     if (q.status) {
       params.push(q.status)
-      where.push(`c.status = $${params.length}`)
+      where.push(`c.status = ANY($${params.length})`)
     }
     if (q.search) {
       params.push(`%${q.search}%`)
@@ -878,27 +880,29 @@ export const taxClientService = {
     if (firmIds.length === 0) return []
 
     const params: any[] = [firmIds]
+    // Filters are multi-value: `= ANY($n)` with a string[] param. csvOf never
+    // yields an empty array, so a falsy check still means "no filter".
     const where: string[] = ['c.is_deleted = FALSE', 'c.firm_id = ANY($1)']
 
     if (q.firm_id) {
       params.push(q.firm_id)
-      where.push(`c.firm_id = $${params.length}`)
+      where.push(`c.firm_id = ANY($${params.length})`)
     }
     if (q.entity_type_id) {
       params.push(q.entity_type_id)
-      where.push(`c.entity_type_id = $${params.length}`)
+      where.push(`c.entity_type_id = ANY($${params.length})`)
     }
     if (q.client_group_id) {
       params.push(q.client_group_id)
-      where.push(`c.client_group_id = $${params.length}`)
+      where.push(`c.client_group_id = ANY($${params.length})`)
     }
     if (q.software_id) {
       params.push(q.software_id)
-      where.push(`c.software_id = $${params.length}`)
+      where.push(`c.software_id = ANY($${params.length})`)
     }
     if (q.status) {
       params.push(q.status)
-      where.push(`c.status = $${params.length}`)
+      where.push(`c.status = ANY($${params.length})`)
     }
     if (q.search) {
       params.push(`%${q.search}%`)

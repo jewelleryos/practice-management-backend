@@ -24,12 +24,16 @@ const MAX_FILTER_MEMBERS = 100
  * Absent, '', or a string of only separators all parse to `undefined`, which
  * every service already reads as "no filter" - so no service needs a new branch
  * for the empty case.
+ *
+ * The result is typed `z.output<T>[]`, NOT `string[]`, so an enum member keeps its
+ * narrowing: csvOf(statusEnum) yields ('active' | 'inactive')[] and a service that
+ * mixes up two filters still fails to compile.
  */
 export function csvOf<T extends z.ZodType<string, z.ZodTypeDef, unknown>>(member: T) {
   return z
     .string()
     .optional()
-    .transform((raw, ctx): string[] | undefined => {
+    .transform((raw, ctx): z.output<T>[] | undefined => {
       // Split, trim, drop blanks, de-duplicate. "a,,b " and "a,b,a" both give ['a','b'].
       const parts = [
         ...new Set(
@@ -50,7 +54,7 @@ export function csvOf<T extends z.ZodType<string, z.ZodTypeDef, unknown>>(member
         return z.NEVER
       }
 
-      const out: string[] = []
+      const out: z.output<T>[] = []
       for (const part of parts) {
         const result = member.safeParse(part)
         if (!result.success) {

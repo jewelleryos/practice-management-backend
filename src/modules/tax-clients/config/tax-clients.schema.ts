@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvOf } from '../../../utils/query-filters'
 import { taxClientMessages } from './tax-clients.messages'
 import {
   SERVICE_FREQUENCY_VALUES,
@@ -160,18 +161,13 @@ export const updateTaxClientSchema = z.object({
 // column in the file.
 export const exportTaxClientsQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
-  entity_type_id: z.string().trim().min(1).optional(),
-  client_group_id: z.string().trim().min(1).optional(),
-  software_id: z.string().trim().min(1).optional(),
-  firm_id: z.string().trim().min(1).optional(),
-  // An empty `status` means "All statuses" on the Clients list, so it is treated
-  // as no filter rather than as an invalid enum - a hand-built export URL of
-  // ?status= should export everything, not fail with a validation error.
-  status: z
-    .literal('')
-    .transform(() => undefined)
-    .or(statusEnum)
-    .optional(),
+  entity_type_id: csvOf(z.string().trim().min(1)),
+  client_group_id: csvOf(z.string().trim().min(1)),
+  software_id: csvOf(z.string().trim().min(1)),
+  firm_id: csvOf(z.string().trim().min(1)),
+  // csvOf already treats '' as "no filter", so ?status= exports everything rather
+  // than failing validation - the behaviour the old .literal('') branch provided.
+  status: csvOf(statusEnum),
 })
 
 // The final gate on a validated CSV row, applied AFTER the CSV service's own
@@ -211,11 +207,13 @@ export const listTaxClientsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).optional(),
-  entity_type_id: z.string().trim().min(1).optional(),
-  client_group_id: z.string().trim().min(1).optional(),
-  software_id: z.string().trim().min(1).optional(),
-  firm_id: z.string().trim().min(1).optional(),
-  status: statusEnum.optional(),
+  // Multi-value filters: "id1,id2". A single value is a one-member list, so URLs
+  // bookmarked before multi-select still work. undefined = no filter = "all".
+  entity_type_id: csvOf(z.string().trim().min(1)),
+  client_group_id: csvOf(z.string().trim().min(1)),
+  software_id: csvOf(z.string().trim().min(1)),
+  firm_id: csvOf(z.string().trim().min(1)),
+  status: csvOf(statusEnum),
   sort_by: z.enum(['name', 'created_at']).default('name'),
   sort_dir: z.enum(['asc', 'desc']).default('asc'),
 })
