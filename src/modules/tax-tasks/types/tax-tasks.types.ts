@@ -137,15 +137,19 @@ export interface TaskActivityListResponse {
 export interface ListTaxTasksQuery {
   page: number
   pageSize: number
+  // NOT multi-value: this pins the list to one client on the profile Tasks tab and
+  // is never chosen from a filter dropdown.
   client_id?: string
-  service_id?: string
-  financial_year_id?: string
-  task_type?: TaskType
-  status?: TaskStatus
-  priority?: TaskPriority
-  frequency?: ServiceFrequency
-  preparer_id?: string
-  reviewer_id?: string
+  // Multi-value filters, parsed from one comma-separated parameter by csvOf.
+  // undefined (never an empty array) means "no filter".
+  service_id?: string[]
+  financial_year_id?: string[]
+  task_type?: TaskType[]
+  status?: TaskStatus[]
+  priority?: TaskPriority[]
+  frequency?: ServiceFrequency[]
+  preparer_id?: string[]
+  reviewer_id?: string[]
   search?: string
   sort_by: 'created_at' | 'due_date'
   sort_dir: 'asc' | 'desc'

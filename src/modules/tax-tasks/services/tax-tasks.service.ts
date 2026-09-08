@@ -132,39 +132,39 @@ export const taxTaskService = {
     }
     if (q.service_id) {
       params.push(q.service_id)
-      where.push(`t.service_id = $${params.length}`)
+      where.push(`t.service_id = ANY($${params.length})`)
     }
     if (q.financial_year_id) {
       params.push(q.financial_year_id)
-      where.push(`t.financial_year_id = $${params.length}`)
+      where.push(`t.financial_year_id = ANY($${params.length})`)
     }
     if (q.task_type) {
       params.push(q.task_type)
-      where.push(`t.task_type = $${params.length}`)
+      where.push(`t.task_type = ANY($${params.length})`)
     }
     if (q.status) {
       params.push(q.status)
-      where.push(`t.status = $${params.length}`)
+      where.push(`t.status = ANY($${params.length})`)
     }
     if (q.priority) {
       params.push(q.priority)
-      where.push(`t.priority = $${params.length}`)
+      where.push(`t.priority = ANY($${params.length})`)
     }
     if (q.frequency) {
       params.push(q.frequency)
-      where.push(`t.frequency = $${params.length}`)
+      where.push(`t.frequency = ANY($${params.length})`)
     }
     // Preparer filter is VIEW_ALL-only: a VIEW_ASSIGNED caller is already limited
     // to their own tasks, so a cross-user filter is meaningless — ignore it for
     // them (see ALL_TASKS_PAGE_RULES.md §1).
     if (q.preparer_id && scope.canViewAll) {
       params.push(q.preparer_id)
-      where.push(`t.preparer_id = $${params.length}`)
+      where.push(`t.preparer_id = ANY($${params.length})`)
     }
     // Reviewer filter: VIEW_ALL-only, same rationale as preparer.
     if (q.reviewer_id && scope.canViewAll) {
       params.push(q.reviewer_id)
-      where.push(`t.reviewer_id = $${params.length}`)
+      where.push(`t.reviewer_id = ANY($${params.length})`)
     }
     // Free-text search over the displayed name (task title for general tasks, the
     // service name for service tasks) and the client name (case-insensitive).

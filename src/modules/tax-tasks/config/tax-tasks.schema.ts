@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvOf } from '../../../utils/query-filters'
 import { taxTaskMessages } from './tax-tasks.messages'
 import {
   SERVICE_FREQUENCY_VALUES,
@@ -188,18 +189,21 @@ export const listTaxTasksQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   client_id: z.string().trim().min(1).optional(),
-  service_id: z.string().trim().min(1).optional(),
-  financial_year_id: z.string().trim().min(1).optional(),
-  // Narrow to service (recurring) or general (ad-hoc) tasks.
-  task_type: z.enum(['service', 'general']).optional(),
-  status: statusEnum.optional(),
-  priority: priorityEnum.optional(),
-  frequency: frequencyEnum.optional(),
+  // Multi-value filters: "a,b". A single value is a one-member list, so URLs
+  // built before multi-select still work. client_id above stays SINGLE - it pins
+  // the list to one client on the profile Tasks tab and is never user-chosen.
+  service_id: csvOf(z.string().trim().min(1)),
+  financial_year_id: csvOf(z.string().trim().min(1)),
+  // Narrow to service (recurring) and/or general (ad-hoc) tasks.
+  task_type: csvOf(z.enum(['service', 'general'])),
+  status: csvOf(statusEnum),
+  priority: csvOf(priorityEnum),
+  frequency: csvOf(frequencyEnum),
   // Filter by preparer. VIEW_ALL only — a VIEW_ASSIGNED member is already scoped
   // to their own tasks, so the service ignores this for them (see ALL_TASKS_PAGE_RULES.md).
-  preparer_id: z.string().trim().min(1).optional(),
+  preparer_id: csvOf(z.string().trim().min(1)),
   // Filter by reviewer. VIEW_ALL only, same as preparer_id.
-  reviewer_id: z.string().trim().min(1).optional(),
+  reviewer_id: csvOf(z.string().trim().min(1)),
   // Free-text search over task title + client name. '' → omitted.
   search: z
     .string()
