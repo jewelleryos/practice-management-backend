@@ -112,7 +112,14 @@ export const taxTaskService = {
     }
 
     const params: any[] = [scope.firmIds]
-    const where: string[] = ['t.is_deleted = FALSE', 'cl.firm_id = ANY($1)']
+    // cl.is_deleted matters as much as t.is_deleted: deleting a client soft-deletes
+    // its tasks, but a task whose client was removed by any other route must not
+    // surface here either. Without this a deleted client's work stays on the list.
+    const where: string[] = [
+      't.is_deleted = FALSE',
+      'cl.is_deleted = FALSE',
+      'cl.firm_id = ANY($1)',
+    ]
 
     // VIEW_ASSIGNED without VIEW_ALL: only tasks the caller prepares or reviews.
     if (!scope.canViewAll) {
@@ -222,7 +229,11 @@ export const taxTaskService = {
     }
 
     const params: any[] = [scope.firmIds]
-    const where: string[] = ['t.is_deleted = FALSE', 'cl.firm_id = ANY($1)']
+    const where: string[] = [
+      't.is_deleted = FALSE',
+      'cl.is_deleted = FALSE',
+      'cl.firm_id = ANY($1)',
+    ]
     if (!scope.canViewAll) {
       params.push(actingUser.id)
       where.push(`(t.preparer_id = $${params.length} OR t.reviewer_id = $${params.length})`)
@@ -318,6 +329,7 @@ export const taxTaskService = {
     const params: any[] = [firmIds, q.service_id, q.frequency]
     const where: string[] = [
       't.is_deleted = FALSE',
+      'cl.is_deleted = FALSE',
       'cl.firm_id = ANY($1)',
       "t.task_type = 'service'",
       't.service_id = $2',
@@ -355,7 +367,7 @@ export const taxTaskService = {
     const result = await db.query(
       `SELECT ${DETAIL_SELECT}, cl.firm_id AS _firm_id
        ${DETAIL_JOINS}
-       WHERE t.id = $1 AND t.is_deleted = FALSE`,
+       WHERE t.id = $1 AND t.is_deleted = FALSE AND cl.is_deleted = FALSE`,
       [id],
     )
     return result.rows[0] ?? null
