@@ -42,7 +42,12 @@ export interface BoardOrderTable {
 // Every table this helper may touch. The table name is interpolated into SQL (it
 // cannot be a bound parameter), so it is checked against this frozen list rather
 // than trusted - even though today every caller passes a constant.
-const ALLOWED_TABLES = ['tax_tasks', 'tax_personal_tasks', 'mortgage_tasks'] as const
+const ALLOWED_TABLES = [
+  'tax_tasks',
+  'tax_personal_tasks',
+  'mortgage_tasks',
+  'mortgage_personal_tasks',
+] as const
 
 export const BOARD_ORDER_TABLES = {
   taxTasks: {
@@ -56,6 +61,10 @@ export const BOARD_ORDER_TABLES = {
   mortgageTasks: {
     table: 'mortgage_tasks',
     defaultOrder: 'created_at DESC, id DESC',
+  },
+  mortgagePersonalTasks: {
+    table: 'mortgage_personal_tasks',
+    defaultOrder: 'due_date ASC NULLS LAST, id DESC',
   },
 } as const satisfies Record<string, BoardOrderTable>
 

@@ -80,6 +80,13 @@ export const listPersonalTasksQuerySchema = z.object({
     .max(200)
     .transform((v) => (v === '' ? undefined : v))
     .optional(),
-  sort_by: z.enum(['created_at', 'due_date']).default('created_at'),
+  // 'board' is the manual card order arranged by dragging (board view only).
+  sort_by: z.enum(['created_at', 'due_date', 'board']).default('created_at'),
   sort_dir: z.enum(['asc', 'desc']).default('desc'),
+})
+
+// Board reorder: place this card immediately after `after_id` within its own status
+// column, or at the top when null. The position is computed on the SERVER.
+export const boardPositionSchema = z.object({
+  after_id: z.string().trim().min(1).nullable(),
 })

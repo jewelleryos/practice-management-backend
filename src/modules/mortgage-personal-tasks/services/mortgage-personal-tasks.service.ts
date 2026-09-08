@@ -1,4 +1,5 @@
 import { db } from '../../../lib/db'
+import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { mortgagePersonalTaskMessages } from '../config/mortgage-personal-tasks.messages'
 import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
@@ -95,6 +96,10 @@ export const mortgagePersonalTaskService = {
     const whereSql = where.join(' AND ')
     const orderCol = q.sort_by === 'due_date' ? 't.due_date' : 't.created_at'
     const orderDir = q.sort_dir === 'asc' ? 'ASC' : 'DESC'
+    const orderBySql =
+      q.sort_by === 'board'
+        ? 't.board_position ASC NULLS LAST, t.due_date ASC NULLS LAST, t.id DESC'
+        : `${orderCol} ${orderDir} NULLS LAST, t.id DESC`
 
     const countResult = await db.query(
       `SELECT COUNT(*)::int AS total ${ROW_JOINS} WHERE ${whereSql}`,
@@ -107,7 +112,7 @@ export const mortgagePersonalTaskService = {
     const listResult = await db.query(
       `SELECT ${ROW_SELECT} ${ROW_JOINS}
        WHERE ${whereSql}
-       ORDER BY ${orderCol} ${orderDir} NULLS LAST, t.id DESC
+       ORDER BY ${orderBySql}
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
       listParams,
     )
@@ -343,4 +348,27 @@ export const mortgagePersonalTaskService = {
     )
     return result.rows as PersonalTaskMemberOption[]
   },
+  // ── BOARD REORDER ── Move a card within its own status column.
+  async reorderOnBoard(
+    actingUser: AuthUser,
+    id: string,
+    afterId: string | null,
+  ): Promise<{ id: string; board_position: number }> {
+    await this.assertVisible(actingUser, id)
+    const row = await db.query(
+      `SELECT status FROM mortgage_personal_tasks WHERE id = $1 AND is_deleted = FALSE`,
+      [id],
+    )
+    if (row.rows.length === 0) {
+      throw new AppError(mortgagePersonalTaskMessages.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+    }
+    const position = await repositionOnBoard(
+      BOARD_ORDER_TABLES.mortgagePersonalTasks,
+      id,
+      row.rows[0].status,
+      afterId,
+    )
+    return { id, board_position: position }
+  },
+
 }

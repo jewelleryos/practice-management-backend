@@ -3,6 +3,7 @@ export const mortgagePersonalTaskMessages = {
   FETCHED: 'Personal task fetched successfully',
   CREATED: 'Personal task created successfully',
   UPDATED: 'Personal task updated successfully',
+  REORDERED: 'Board order updated successfully',
   STATUS_UPDATED: 'Personal task status updated successfully',
   FOLLOWERS_UPDATED: 'Followers updated successfully',
   NOT_FOUND: 'Personal task not found',

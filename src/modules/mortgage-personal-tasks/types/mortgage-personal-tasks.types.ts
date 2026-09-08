@@ -37,7 +37,7 @@ export interface ListPersonalTasksQuery {
   status?: TaskStatus[]
   follower_id?: string
   search?: string
-  sort_by: 'created_at' | 'due_date'
+  sort_by: 'created_at' | 'due_date' | 'board'
   sort_dir: 'asc' | 'desc'
 }
 
