@@ -21,6 +21,7 @@ import type {
   ExportRow,
   ImportableClient,
   ImportResult,
+  TaxClientDeletionImpact,
 } from '../types/tax-clients.types'
 
 export const taxClientService = {
@@ -186,6 +187,134 @@ export const taxClientService = {
       params,
     )
     return result.rows[0]?.count ?? 0
+  },
+
+  // ── DELETION IMPACT (what a delete would remove) ──
+  // Counts every LIVE child row. Deliberately NOT scoped by the caller's
+  // VIEW_ALL / VIEW_ASSIGNED task scope: a member who can see 1 of 12 tasks must
+  // still be told 12, because 12 is what the button removes. A confirm dialog that
+  // under-reports what it is about to do is worse than no dialog.
+  //
+  // This is the opposite choice to pendingTaskCountFor above, which IS scoped -
+  // that one powers the Tasks tab badge, which must match the tab's contents.
+  async deletionImpact(actingUser: AuthUser, id: string): Promise<TaxClientDeletionImpact> {
+    await this.getById(actingUser, id) // 404s if missing / deleted / outside the caller's firms
+
+    const result = await db.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM tax_tasks
+            WHERE client_id = $1 AND is_deleted = FALSE) AS tasks,
+         (SELECT COUNT(*)::int FROM tax_client_notes
+            WHERE client_id = $1 AND is_deleted = FALSE) AS notes,
+         (SELECT COUNT(*)::int FROM tax_client_services
+            WHERE client_id = $1 AND is_deleted = FALSE) AS services,
+         (SELECT COUNT(*)::int FROM tax_client_relationships
+            WHERE (client_id = $1 OR related_client_id = $1) AND is_deleted = FALSE) AS relationships,
+         (SELECT COUNT(*)::int FROM engagement_letters
+            WHERE client_id = $1 AND is_deleted = FALSE) AS engagement_letters,
+         (SELECT COUNT(*)::int FROM annual_reviews
+            WHERE client_id = $1 AND is_deleted = FALSE) AS annual_reviews`,
+      [id],
+    )
+    return result.rows[0]
+  },
+
+  // ── DELETE (soft, cascading) ──
+  // Soft-deletes the client and everything belonging to it in ONE transaction.
+  // Nothing is physically removed - every row keeps its data and gains is_deleted /
+  // deleted_at / deleted_by, so any delete is undone with an UPDATE.
+  //
+  // NOW() is transaction_timestamp() in PostgreSQL - constant for the whole
+  // transaction, not re-evaluated per statement - so every row touched here gets an
+  // IDENTICAL deleted_at. That timestamp is effectively a batch id for this delete,
+  // which is what lets an undo restore exactly these rows and leave anything deleted
+  // earlier, for its own reasons, still deleted.
+  //
+  // `AND is_deleted = FALSE` on every statement matters: without it an already-
+  // deleted child would have its deleted_at / deleted_by overwritten, destroying the
+  // record of who removed it and when.
+  //
+  // tax_task_activity is deliberately NOT touched - migration 025 declares it
+  // append-only. An audit trail you can rewrite is not an audit trail.
+  async remove(actingUser: AuthUser, id: string): Promise<void> {
+    await this.getById(actingUser, id) // 404s if missing / deleted / outside the caller's firms
+
+    const tx = await db.connect()
+    try {
+      await tx.query('BEGIN')
+      const args = [id, actingUser.id]
+
+      // Relationships, BOTH directions. The row is one record shared by two clients;
+      // leaving the reverse live would keep a row pointing at a deleted client, and
+      // the other client's Relationships tab reads both directions.
+      await tx.query(
+        `UPDATE tax_client_relationships
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE (client_id = $1 OR related_client_id = $1) AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE tax_client_services
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE client_id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE tax_client_notes
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE client_id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+      // Task comments. The subquery deliberately does NOT filter tax_tasks on
+      // is_deleted, so this is order-independent and also sweeps up comments left on
+      // a task that was already deleted individually.
+      await tx.query(
+        `UPDATE tax_task_comments
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE task_id IN (SELECT id FROM tax_tasks WHERE client_id = $1)
+           AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE tax_tasks
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE client_id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+      // Engagement letter notes, same order-independent subquery shape.
+      await tx.query(
+        `UPDATE engagement_letter_notes
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE engagement_letter_id IN (SELECT id FROM engagement_letters WHERE client_id = $1)
+           AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE engagement_letters
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE client_id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE annual_reviews
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE client_id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+      await tx.query(
+        `UPDATE tax_clients
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE id = $1 AND is_deleted = FALSE`,
+        args,
+      )
+
+      await tx.query('COMMIT')
+    } catch (error) {
+      await tx.query('ROLLBACK')
+      throw error
+    } finally {
+      tx.release()
+    }
   },
 
   // Existing clients within the member's accessible firms — options for the

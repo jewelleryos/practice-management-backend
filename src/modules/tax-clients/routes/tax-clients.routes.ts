@@ -23,6 +23,7 @@ import type {
   TaxClientListResponse,
   ImportPreview,
   ImportResult,
+  TaxClientDeletionImpact,
 } from '../types/tax-clients.types'
 // A client's tasks are served here (nested under the client) but the logic lives
 // in the tax-tasks module — reuse its scoped list service + schema.
@@ -42,8 +43,8 @@ import type {
 } from '../../engagement-letters/types/engagement-letters.types'
 
 // Tax Practice clients. Visibility is firm-scoped in the service: a member only
-// sees / can act on clients belonging to firms they have access to. There is NO
-// delete route yet (deferred; see root CLAUDE.md).
+// sees / can act on clients belonging to firms they have access to. Delete is a
+// CASCADING SOFT delete (TAX_CLIENT.DELETE) - see the service's remove().
 export const taxClientRoutes = new Hono<AppEnv>()
 
 // GET /api/tax-clients — server-driven list (pagination, filters, sort)
@@ -271,6 +272,38 @@ taxClientRoutes.put('/:id', authWithPermission(PERMISSIONS.TAX_CLIENT.UPDATE), a
     const data = updateTaxClientSchema.parse(await c.req.json())
     const result = await taxClientService.update(c.get('user'), c.req.param('id')!, data)
     return successResponse<TaxClientDetail>(c, taxClientMessages.UPDATED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// GET /api/tax-clients/:id/deletion-impact — counts of what a delete would remove,
+// for the confirm dialog. Its own route rather than a field on GET /:id so the normal
+// profile load does not pay for six COUNT queries on every open. Two path segments,
+// so no clash with GET /:id.
+taxClientRoutes.get(
+  '/:id/deletion-impact',
+  authWithPermission(PERMISSIONS.TAX_CLIENT.DELETE),
+  async (c) => {
+    try {
+      const result = await taxClientService.deletionImpact(c.get('user'), c.req.param('id')!)
+      return successResponse<TaxClientDeletionImpact>(
+        c,
+        taxClientMessages.DELETION_IMPACT_FETCHED,
+        result,
+      )
+    } catch (error) {
+      return errorHandler(error, c)
+    }
+  },
+)
+
+// DELETE /api/tax-clients/:id — cascading soft delete of the client and everything
+// it owns. Nothing is physically removed.
+taxClientRoutes.delete('/:id', authWithPermission(PERMISSIONS.TAX_CLIENT.DELETE), async (c) => {
+  try {
+    await taxClientService.remove(c.get('user'), c.req.param('id')!)
+    return successResponse(c, taxClientMessages.DELETED, null)
   } catch (error) {
     return errorHandler(error, c)
   }

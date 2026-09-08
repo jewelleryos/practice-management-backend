@@ -311,3 +311,15 @@ export interface ImportResult {
   // The ULID stamped on every client this import created - the undo handle.
   batch_id: string
 }
+
+// Counts of what deleting a client would remove, for the confirm dialog. These are
+// UNSCOPED by the caller's task-view permission on purpose: the dialog must state
+// what the button will remove, not what this member happens to see.
+export interface TaxClientDeletionImpact {
+  tasks: number
+  notes: number
+  services: number
+  relationships: number
+  engagement_letters: number
+  annual_reviews: number
+}

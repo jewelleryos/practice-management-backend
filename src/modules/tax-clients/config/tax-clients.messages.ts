@@ -3,6 +3,8 @@ export const taxClientMessages = {
   FETCHED: 'Client fetched successfully',
   CREATED: 'Client created successfully',
   UPDATED: 'Client updated successfully',
+  DELETED: 'Client deleted successfully',
+  DELETION_IMPACT_FETCHED: 'Deletion impact fetched successfully',
   NOT_FOUND: 'Client not found',
   OPTIONS_FETCHED: 'Client options fetched successfully',
 
