@@ -34,7 +34,7 @@ import type {
 // Mortgage service tasks (department-scoped). Route-level gate is VIEW for reads +
 // writes (module access); VIEW_ALL widens the scope inside the service; every /:id
 // handler calls loadVisibleRow (visibility = writability). create gates on CREATE;
-// activity gates on VIEW_ACTIVITY. No delete route yet (deferred).
+// activity gates on VIEW_ACTIVITY; delete gates on DELETE.
 export const mortgageTaskRoutes = new Hono<AppEnv>()
 
 // GET /api/mortgage-tasks — list (VIEW_ALL widens scope in the service)
@@ -292,6 +292,17 @@ mortgageTaskRoutes.put('/:id', authWithPermission(PERMISSIONS.MORTGAGE_TASK.VIEW
     const data = updateMortgageTaskSchema.parse(await c.req.json())
     const result = await mortgageTaskService.update(c.get('user'), c.req.param('id')!, data)
     return successResponse<MortgageTaskDetail>(c, mortgageTaskMessages.UPDATED, result)
+  } catch (error) {
+    return errorHandler(error, c)
+  }
+})
+
+// DELETE /api/mortgage-tasks/:id — soft-delete a task with its notes and comments.
+// Gated by MORTGAGE_TASK.DELETE; the service also requires the caller can see the task.
+mortgageTaskRoutes.delete('/:id', authWithPermission(PERMISSIONS.MORTGAGE_TASK.DELETE), async (c) => {
+  try {
+    const result = await mortgageTaskService.remove(c.get('user'), c.req.param('id')!)
+    return successResponse<{ id: string }>(c, mortgageTaskMessages.DELETED, result)
   } catch (error) {
     return errorHandler(error, c)
   }

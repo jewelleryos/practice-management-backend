@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
+import { repositionOnBoard, placeAtTopOfColumn, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { db } from '../../../lib/db'
 import { mortgageTaskMessages } from '../config/mortgage-tasks.messages'
 import { AppError } from '../../../utils/app-error'
@@ -306,6 +306,9 @@ export const mortgageTaskService = {
       )
       const taskId = inserted.rows[0].id as string
 
+      // Newest card first on the board - a NULL position would sort it last.
+      await placeAtTopOfColumn(client, BOARD_ORDER_TABLES.mortgageTasks, taskId)
+
       for (const memberId of followerIds) {
         await client.query(
           `INSERT INTO mortgage_task_followers (task_id, member_id) VALUES ($1, $2)`,
@@ -376,6 +379,54 @@ export const mortgageTaskService = {
       })
     }
     return this.getById(actingUser, id)
+  },
+
+  // ── DELETE (soft, cascading: the task with its notes and comments) ──
+  // The route gates on MORTGAGE_TASK.DELETE; loadVisibleRow then applies firm scope
+  // and VIEW / VIEW_ALL, so the effective rule is "delete a task you are already
+  // allowed to see" - the same shape as the tax module. Any status can be deleted.
+  //
+  // Notes and comments are the task's own content and go with it, so one UPDATE per
+  // table on the shared deleted_at brings the whole thing back. NOW() is
+  // transaction_timestamp() - constant across the transaction - so all three tables
+  // share one stamp and a restore cannot pick up rows deleted at some other time.
+  //
+  // mortgage_task_activity is NEVER deleted (migration 035: append-only). The
+  // task_deleted event is appended INSIDE the transaction so the event and its cause
+  // commit together.
+  async remove(actingUser: AuthUser, id: string): Promise<{ id: string }> {
+    await this.loadVisibleRow(actingUser, id) // 404s if missing / deleted / not visible
+
+    const tx = await db.connect()
+    try {
+      await tx.query('BEGIN')
+      await tx.query(
+        `UPDATE mortgage_task_comments
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE task_id = $1 AND is_deleted = FALSE`,
+        [id, actingUser.id],
+      )
+      await tx.query(
+        `UPDATE mortgage_task_notes
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE task_id = $1 AND is_deleted = FALSE`,
+        [id, actingUser.id],
+      )
+      await tx.query(
+        `UPDATE mortgage_tasks
+         SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2
+         WHERE id = $1 AND is_deleted = FALSE`,
+        [id, actingUser.id],
+      )
+      await this.logActivity(tx, id, actingUser.id, MORTGAGE_TASK_ACTIVITY_ACTIONS.TASK_DELETED)
+      await tx.query('COMMIT')
+      return { id }
+    } catch (error) {
+      await tx.query('ROLLBACK')
+      throw error
+    } finally {
+      tx.release()
+    }
   },
 
   // ── CHANGE STATUS — writes a status-change note; description required unless the

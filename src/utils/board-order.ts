@@ -209,3 +209,36 @@ export async function repositionOnBoard(
     tx.release()
   }
 }
+
+/**
+ * Put a freshly created task at the TOP of its status column.
+ *
+ * A new row's `board_position` is NULL, and every board sorts
+ * `board_position ASC NULLS LAST` - so without this a new card lands underneath
+ * every card in the column (below the arranged ones because it is NULL, and below
+ * the un-arranged ones because the fallback order is by due date / creation). One
+ * position below the column's current minimum puts it first whether or not anyone
+ * has ever dragged in that column, because any number sorts before NULL.
+ *
+ * Must run inside the caller's create transaction, so a task never exists without
+ * its position. Two simultaneous creates can read the same minimum and tie; the
+ * board's remaining ORDER BY breaks the tie, which is why this does not lock the
+ * column the way a drag does.
+ */
+export async function placeAtTopOfColumn(
+  tx: PoolClient,
+  cfg: BoardOrderTable,
+  id: string,
+): Promise<void> {
+  assertTable(cfg)
+  await tx.query(
+    `UPDATE ${cfg.table} AS t
+     SET board_position = (
+       SELECT COALESCE(MIN(o.board_position), 0) - $2::float
+       FROM ${cfg.table} AS o
+       WHERE o.status = t.status AND o.is_deleted = FALSE AND o.id <> t.id
+     )
+     WHERE t.id = $1`,
+    [id, SPACING],
+  )
+}

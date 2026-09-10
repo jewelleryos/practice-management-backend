@@ -5,6 +5,7 @@
 //
 // `detail` (JSONB on the row) carries per-event context, e.g.
 //   TASK_UPDATED     -> { fields: string[] }        (changed field names)
+//   TASK_DELETED     -> {}                          (no detail; who + when is on the row)
 //   STATUS_CHANGED   -> { from, to }                (status codes)
 //   FOLLOWER_ADDED   -> { member_id, name }
 //   FOLLOWER_REMOVED -> { member_id, name }
@@ -18,6 +19,7 @@
 export const MORTGAGE_TASK_ACTIVITY_ACTIONS = {
   TASK_CREATED: 'task_created',
   TASK_UPDATED: 'task_updated',
+  TASK_DELETED: 'task_deleted',
   STATUS_CHANGED: 'status_changed',
   FOLLOWER_ADDED: 'follower_added',
   FOLLOWER_REMOVED: 'follower_removed',

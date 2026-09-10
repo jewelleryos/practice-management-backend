@@ -1,5 +1,5 @@
 import { db } from '../../../lib/db'
-import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
+import { repositionOnBoard, placeAtTopOfColumn, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { personalTaskMessages } from '../config/tax-personal-tasks.messages'
 import { AppError } from '../../../utils/app-error'
 import { HTTP_STATUS } from '../../../config/constants'
@@ -204,6 +204,9 @@ export const personalTaskService = {
         [data.title, data.description ?? null, data.status, data.due_date ?? null, actingUser.id],
       )
       const taskId = inserted.rows[0].id as string
+
+      // Newest card first on the board - a NULL position would sort it last.
+      await placeAtTopOfColumn(client, BOARD_ORDER_TABLES.taxPersonalTasks, taskId)
 
       for (const memberId of followerIds) {
         await client.query(

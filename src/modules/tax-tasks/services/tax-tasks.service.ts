@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import { repositionOnBoard, BOARD_ORDER_TABLES } from '../../../utils/board-order'
+import { repositionOnBoard, placeAtTopOfColumn, BOARD_ORDER_TABLES } from '../../../utils/board-order'
 import { db } from '../../../lib/db'
 import { taxTaskMessages } from '../config/tax-tasks.messages'
 import { AppError } from '../../../utils/app-error'
@@ -768,6 +768,9 @@ export const taxTaskService = {
       )
       const taskId = inserted.rows[0].id as string
 
+      // Newest card first on the board - a NULL position would sort it last.
+      await placeAtTopOfColumn(client, BOARD_ORDER_TABLES.taxTasks, taskId)
+
       await this.logActivity(client, taskId, actingUser.id, TASK_ACTIVITY_ACTIONS.TASK_CREATED)
 
       await client.query('COMMIT')
@@ -821,6 +824,9 @@ export const taxTaskService = {
         ],
       )
       const taskId = inserted.rows[0].id as string
+
+      // Newest card first on the board - a NULL position would sort it last.
+      await placeAtTopOfColumn(client, BOARD_ORDER_TABLES.taxTasks, taskId)
 
       await this.logActivity(client, taskId, actingUser.id, TASK_ACTIVITY_ACTIONS.TASK_CREATED)
 

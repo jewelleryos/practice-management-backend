@@ -3,6 +3,7 @@ export const mortgageTaskMessages = {
   FETCHED: 'Mortgage task fetched successfully',
   CREATED: 'Mortgage task created successfully',
   UPDATED: 'Mortgage task updated successfully',
+  DELETED: 'Mortgage task deleted successfully',
   STATUS_UPDATED: 'Task status updated successfully',
   REORDERED: 'Board order updated successfully',
   FOLLOWERS_UPDATED: 'Followers updated successfully',

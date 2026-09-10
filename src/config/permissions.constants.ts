@@ -216,11 +216,17 @@ export const PERMISSIONS = {
   //   VIEW          — see tasks the caller created or follows (within their firms)
   //   VIEW_ALL      — see every task in the firms the caller can access
   //   VIEW_ACTIVITY — read a task's activity log
+  //   DELETE        — soft-delete a task (with its notes and comments)
   MORTGAGE_TASK: {
     CREATE: 2101,
     VIEW: 2102,
     VIEW_ALL: 2103,
     VIEW_ACTIVITY: 2104,
+    // Soft-delete a task with its notes and comments. Gated on its own code, but
+    // the route still runs loadVisibleRow, so the effective rule is "delete a task
+    // you are already allowed to see" - the same shape as TAX_TASK.DELETE (1105).
+    // Added to no seeded role.
+    DELETE: 2105,
   },
   // Personal tasks (mortgage) — a member's private to-dos, visible only to the
   // creator and their followers. A SINGLE permission gates the whole module (same
@@ -518,6 +524,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { code: PERMISSIONS.MORTGAGE_TASK.VIEW, action: 'VIEW', label: 'View own/followed tasks', requires: [] },
       { code: PERMISSIONS.MORTGAGE_TASK.VIEW_ALL, action: 'VIEW_ALL', label: 'View all firm tasks', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
       { code: PERMISSIONS.MORTGAGE_TASK.VIEW_ACTIVITY, action: 'VIEW_ACTIVITY', label: 'View task activity log', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
+      { code: PERMISSIONS.MORTGAGE_TASK.DELETE, action: 'DELETE', label: 'Delete tasks', requires: [PERMISSIONS.MORTGAGE_TASK.VIEW] },
     ],
   },
   {
