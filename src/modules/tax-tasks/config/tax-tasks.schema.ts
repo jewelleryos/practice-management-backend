@@ -221,11 +221,21 @@ export const listTaxTasksQuerySchema = z.object({
 // Work Status grid query. financial_year_id / month are required only for some
 // frequencies; the service enforces that (and validates the service supports the
 // frequency). A `month` (1-12, FY numbering) scopes fortnightly / weekly.
+// The client filters mirror the Clients list one-for-one (same parameter names,
+// same csv encoding), because the board's rows ARE clients and the two screens
+// must agree on what "All groups" or "Active" means.
 export const workStatusGridQuerySchema = z.object({
   service_id: z.string().trim().min(1),
   frequency: frequencyEnum,
   financial_year_id: z.string().trim().min(1).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
+  // Client row filters - same shape as listTaxClientsQuerySchema.
+  search: z.string().trim().optional(),
+  entity_type_id: csvOf(z.string().trim().min(1)),
+  client_group_id: csvOf(z.string().trim().min(1)),
+  software_id: csvOf(z.string().trim().min(1)),
+  firm_id: csvOf(z.string().trim().min(1)),
+  client_status: csvOf(z.enum(['active', 'inactive'])),
 })
 
 // Board reorder: place this card immediately after `after_id` within its own status

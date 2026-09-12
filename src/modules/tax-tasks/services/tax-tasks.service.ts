@@ -284,18 +284,39 @@ export const taxTaskService = {
   // frequencies) + financial years. Gated by WORK_STATUS_BOARD.VIEW at the route
   // (its own permission, independent of the task view codes).
   async workStatusOptions(): Promise<WorkStatusOptionsResponse> {
-    const [services, financialYears] = await Promise.all([
-      db.query(
-        `SELECT id, name, frequencies FROM services
-         WHERE department = 'tax_practice' AND is_deleted = FALSE
-         ORDER BY LOWER(name) ASC`,
-      ),
-      db.query(
-        `SELECT id, year AS name FROM financial_years
-         WHERE is_deleted = FALSE ORDER BY year DESC`,
-      ),
-    ])
-    return { services: services.rows, financialYears: financialYears.rows }
+    const [services, financialYears, entityTypes, clientGroups, firms, software] =
+      await Promise.all([
+        db.query(
+          `SELECT id, name, frequencies FROM services
+           WHERE department = 'tax_practice' AND is_deleted = FALSE
+           ORDER BY LOWER(name) ASC`,
+        ),
+        db.query(
+          `SELECT id, year AS name FROM financial_years
+           WHERE is_deleted = FALSE ORDER BY year DESC`,
+        ),
+        // The client filter dropdowns, same sources and order as the Clients list.
+        // Served here (board-gated) so board access alone is enough to filter.
+        db.query(
+          `SELECT id, name FROM entity_types WHERE is_deleted = FALSE ORDER BY LOWER(name) ASC`,
+        ),
+        db.query(
+          `SELECT id, name FROM client_groups WHERE is_deleted = FALSE ORDER BY LOWER(name) ASC`,
+        ),
+        db.query(
+          `SELECT id, name FROM firms
+           WHERE is_deleted = FALSE AND department = 'tax_practice' ORDER BY LOWER(name) ASC`,
+        ),
+        db.query(`SELECT id, name FROM software WHERE is_deleted = FALSE ORDER BY LOWER(name) ASC`),
+      ])
+    return {
+      services: services.rows,
+      financialYears: financialYears.rows,
+      entityTypes: entityTypes.rows,
+      clientGroups: clientGroups.rows,
+      firms: firms.rows,
+      software: software.rows,
+    }
   },
 
   // The service-wise status grid for one service + frequency (+ scope). Rows are
@@ -313,24 +334,63 @@ export const taxTaskService = {
     // Validate the service exists, is tax-practice, and supports the frequency.
     await this.assertServiceAndFrequency(q.service_id, q.frequency)
 
+    // The client row filters, built ONCE and applied to BOTH queries below. If the
+    // tasks query skipped them it would return tasks for clients that have no row,
+    // and every one of those would be silently dropped when the frontend pivots
+    // tasks onto rows - wasted payload that also makes any future count wrong.
+    // `alias` is a literal from this function, never user input.
+    const clientFilterSql = (alias: string, params: any[]): string[] => {
+      const parts: string[] = []
+      if (q.firm_id) {
+        params.push(q.firm_id)
+        parts.push(`${alias}.firm_id = ANY($${params.length})`)
+      }
+      if (q.entity_type_id) {
+        params.push(q.entity_type_id)
+        parts.push(`${alias}.entity_type_id = ANY($${params.length})`)
+      }
+      if (q.client_group_id) {
+        params.push(q.client_group_id)
+        parts.push(`${alias}.client_group_id = ANY($${params.length})`)
+      }
+      if (q.software_id) {
+        params.push(q.software_id)
+        parts.push(`${alias}.software_id = ANY($${params.length})`)
+      }
+      if (q.client_status) {
+        params.push(q.client_status)
+        parts.push(`${alias}.status = ANY($${params.length})`)
+      }
+      if (q.search) {
+        params.push(`%${q.search}%`)
+        parts.push(`${alias}.name ILIKE $${params.length}`)
+      }
+      return parts
+    }
+
     // Rows: clients using this service AT the selected frequency (their linked
     // frequency matches), firm-scoped. A client here with no task for a given
     // period simply shows a dash — the row appears whether or not a task exists.
     // EXISTS (not JOIN+DISTINCT) so ORDER BY LOWER(name) is valid.
+    const clientParams: any[] = [firmIds, q.service_id, q.frequency]
+    const clientWhere = [
+      'c.is_deleted = FALSE',
+      'c.firm_id = ANY($1)',
+      `EXISTS (
+         SELECT 1 FROM tax_client_services tcs
+         WHERE tcs.client_id = c.id
+           AND tcs.service_id = $2
+           AND tcs.frequency = $3
+           AND tcs.is_deleted = FALSE
+       )`,
+      ...clientFilterSql('c', clientParams),
+    ]
     const clients = await db.query(
       `SELECT c.id, c.name
        FROM tax_clients c
-       WHERE c.is_deleted = FALSE
-         AND c.firm_id = ANY($1)
-         AND EXISTS (
-           SELECT 1 FROM tax_client_services tcs
-           WHERE tcs.client_id = c.id
-             AND tcs.service_id = $2
-             AND tcs.frequency = $3
-             AND tcs.is_deleted = FALSE
-         )
+       WHERE ${clientWhere.join(' AND ')}
        ORDER BY LOWER(c.name) ASC`,
-      [firmIds, q.service_id, q.frequency],
+      clientParams,
     )
 
     // Matching service tasks in scope.
@@ -351,6 +411,8 @@ export const taxTaskService = {
       params.push(q.month)
       where.push(`t.month = $${params.length}`)
     }
+    // Same client filters as the rows, so tasks and rows can never disagree.
+    where.push(...clientFilterSql('cl', params))
 
     const tasks = await db.query(
       `SELECT t.id, t.client_id, t.financial_year_id, fy.year AS financial_year,

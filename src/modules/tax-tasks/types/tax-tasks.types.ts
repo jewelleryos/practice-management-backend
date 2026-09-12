@@ -181,6 +181,14 @@ export interface TaxTaskFilterOptions {
 export interface WorkStatusOptionsResponse {
   services: { id: string; name: string; frequencies: ServiceFrequency[] }[]
   financialYears: { id: string; name: string }[]
+  // Client filter dropdowns. Served from the BOARD's own options route rather than
+  // the Clients module's, so a member with WORK_STATUS_BOARD.VIEW but no
+  // TAX_CLIENT.READ still gets working filters - the same permission-detached
+  // pattern the board already uses for its work statuses and members.
+  entityTypes: { id: string; name: string }[]
+  clientGroups: { id: string; name: string }[]
+  firms: { id: string; name: string }[]
+  software: { id: string; name: string }[]
 }
 
 // One SERVICE task in the grid scope, with just what a cell needs. The frontend
@@ -216,6 +224,15 @@ export interface WorkStatusGridQuery {
   frequency: ServiceFrequency
   financial_year_id?: string
   month?: number
+  // Client row filters - the Clients list's filter set, applied to the board's rows.
+  search?: string
+  entity_type_id?: string[]
+  client_group_id?: string[]
+  software_id?: string[]
+  firm_id?: string[]
+  // Named client_status, not status: `status` on this board already means the
+  // TASK lifecycle status, and one query cannot carry two meanings of the word.
+  client_status?: ('active' | 'inactive')[]
 }
 
 export interface TaxTaskListItem extends TaskPeriod {
